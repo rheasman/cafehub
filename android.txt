@@ -1,0 +1,3 @@
+title=DEDebug
+author=Decent Espresso
+orientation=landscape

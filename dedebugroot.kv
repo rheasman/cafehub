@@ -1,0 +1,14 @@
+#:import BLEScanWidget ui.blescanwidget
+BoxLayout:
+    orientation: 'vertical'
+    padding: 2
+    spacing: 1
+    BoxLayout:
+        orientation: 'horizontal'
+        BLEScanWidget:
+            id: scanwidget
+        Button:
+            text: 'Info'
+    Button:
+        text: 'Logger Output'
+
