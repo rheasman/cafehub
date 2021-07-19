@@ -3,3 +3,4 @@ activate
 doodles/
 bin/
 KnownDE1s.txt
+__pycache__/
