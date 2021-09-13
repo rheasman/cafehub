@@ -113,7 +113,7 @@ class DEDebugApp(App):
         """
         Runs and updates the view of BLE devices
         """
-        Logger.debug("UI: Entering ble_scan_check()")
+        Logger.info("UI: Entering ble_scan_check()")
         sw = self.BLEScanWidget
         st = self.BLE.getBLEScanTool()
         if st is None:
@@ -124,7 +124,7 @@ class DEDebugApp(App):
         for i in entries:
             if i not in self.ShownDevices:
                 self.ShownDevices.add(i)
-                Logger.debug(f"UI: ble_scan_check: {i} : {entries[i]}")
+                Logger.info(f"UI: ble_scan_check: {i} : {entries[i]}")
                 item = entries[i]
                 if (item.uuids is not None) and self.match_DE1_uuid_list(item.uuids) and item.name.startswith("DE1"):
                     sw.addDE1Node(item)
@@ -140,10 +140,10 @@ class DEDebugApp(App):
 
         startedconn = False
         for i in self.ShownDevices:
-            Logger.debug("UI: Found: %s" % i)
+            Logger.info("UI: Found: %s" % i)
 
             item = entries[i]
-            Logger.debug("UI: item: %s" % (item,))
+            Logger.info("UI: item: %s" % (item,))
             if (item.uuids is not None) and (self.match_DE1_uuid_list(item.uuids)) and item.name.startswith("DE1"):
                 # We've found a DE1. Connect to it and break.
                 with open('KnownDE1s.txt', 'w') as f:
@@ -166,7 +166,7 @@ class DEDebugApp(App):
         self.DE1GATTClient = self.BLE.getGATTClient(mac)
         gc = self.DE1GATTClient
         gc.connect()
-        Logger.debug("BLE: next")
+        Logger.info("BLE: next")
         uuid = '0000a001-0000-1000-8000-00805f9b34fb'
         Logger.info("char_read: %s" % (gc.char_read(uuid),))
         gc.callback_char_read(uuid, callback=self.cb_cr_done)
@@ -174,12 +174,12 @@ class DEDebugApp(App):
 
     @exceptionCatcherForAsyncDecorator
     async def try_async_char_read(self):
-        Logger.debug("UI: try_async_char_read")
+        Logger.info("UI: try_async_char_read")
         r = await self.DE1GATTClient.async_char_read('0000a001-0000-1000-8000-00805f9b34fb')
-        Logger.debug("async_char_read: %s" % (r,))
+        Logger.info("async_char_read: %s" % (r,))
 
     def cb_cr_done(self, result, dt):
-        Logger.debug("UI: cb_cr_done(%s, %s)" % (result.getResult(), dt))
+        Logger.info("UI: cb_cr_done(%s, %s)" % (result.getResult(), dt))
 
     def cb_connect_done(self, result):
         Logger.info("BLE: cb_connect_done: %s" % (result,))
@@ -193,7 +193,7 @@ class DEDebugApp(App):
         return True
 
     def on_stop(self):
-        Logger.debug("APP: on_stop()")
+        Logger.info("APP: on_stop()")
         if self.DE1GATTClient is not None:
             self.DE1GATTClient.disconnect()
 

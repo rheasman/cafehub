@@ -337,7 +337,7 @@ def wrap_into_QOp(oldmethod):
 
             try:
                 r = res.get(block=True, timeout=self.QOpTimeout)
-            except queue.Empty as e:
+            except queue.Empty:
                 raise BLEOperationTimedOut(
                     "Issued %s returned no results in %s seconds" % (oldmethod.__name__, self.QOpTimeout))
 
