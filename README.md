@@ -32,6 +32,7 @@ This is a work in progress, and there is still much to do.
  * BLE operations are working on both Android and Linux, but not all operations have been implemented in both.
  * Some error exceptions generated from Bleak and Android have to be mapped to platform-agnostic equivalents.
  * Complete tests need to be written for both the sync and async APIs.
+ * Kivy is working, and can run asynchronously or synchronously with the BLE API.
  * The websocket server is not implemented yet.
 
 On the shoulders of giants...
