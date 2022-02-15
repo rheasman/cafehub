@@ -46,6 +46,10 @@ class BLEInterface(metaclass=abc.ABCMeta):
         """Call is app is resumed"""
 
     @abc.abstractmethod
+    def on_stop(self):
+        """Call to gracefully shut down BLE, as part of stopping the app"""
+
+    @abc.abstractmethod
     def isBLESupported(self):
         """Returns True if BLE is supported"""
 

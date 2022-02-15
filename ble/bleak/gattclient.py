@@ -1,14 +1,10 @@
-from bleak import BleakClient
+from bleak import BleakClient, BleakError
+from bleak.backends.service import BleakGATTServiceCollection
 from kivy.logger import Logger
 
-from ble.bleops import ContextConverter, QOp, QOpExecutor, async_wrap_async_into_QOp, wrap_into_QOp
-from ble.gattclientinterface import GATTClientInterface
-
-
-class GATTCStates:
-    INIT = 0
-    CONNECTED = 1
-    DISCONNECTED = 2
+from ble.bleops import ContextConverter, OpResult, QOp, QOpExecutor, async_wrap_async_into_QOp, wrap_into_QOp
+from ble.gattclientinterface import GATTClientInterface, GATTCState
+from ble.bleexceptions import *
 
 
 class GATTClient(GATTClientInterface):
@@ -33,21 +29,24 @@ class GATTClient(GATTClientInterface):
     """
 
     def __init__(self, macaddress: str, qopexecutor: QOpExecutor, contextconverter: ContextConverter):
-        Logger.debug("ble.bleak.GATTClient.__init__(%s, %s, %s)" % (macaddress, qopexecutor, contextconverter))
+        Logger.debug("BLE: ble.bleak.GATTClient.__init__(%s, %s, %s)" % (macaddress, qopexecutor, contextconverter))
         self.MAC = macaddress
         self.BleakClient = BleakClient(self.MAC)
 
-        self.State = GATTCStates.INIT
+        self.State = GATTCState.INIT
         self.QOpExecutor = qopexecutor  # Holds a queue of operations that are run in their own thread
         self.QOpExecutor.startBackgroundProcessing()
 
         self.CBConverter = contextconverter  # Used to convert callbacks out of the background thread
 
-        self.QOpTimeout = 30
+        self.QOpTimeout = 200
 
     def __del__(self):
         Logger.debug("BLE: sending disconnect to %s" % (self.MAC,))
         self.disconnect()
+
+    def shutdown(self):
+        self.QOpExecutor.shutdown()
 
     # Most operations are available in 3 different flavours:
     # asynchronous, callback, and synchronous. All operations are run on
@@ -60,14 +59,26 @@ class GATTClient(GATTClientInterface):
 
     # *** Internal functions. No touchy!
 
-    async def _connect(self, manager=None, reason=None):
+    async def _connect(self, manager=None, reason=None) -> GATTCState:
         Logger.debug("BLE: GATTClient.connect() to '%s'" % self.MAC)
 
         if reason is not None:
             # We've been told to cancel, so do nothing
-            return
+            return GATTCState.CANCELLED
 
-        await self.BleakClient.connect()
+        try:
+            # Next line of code is a hack to circumvent a BLEAK bug. See https://github.com/hbldh/bleak/issues/376
+            # Clear the list of services associated with a peripheral, to stop intermittent exceptions
+            # that complain that the list already has entries.
+            self.BleakClient.services = BleakGATTServiceCollection()
+
+            connected = await self.BleakClient.connect()
+        except BleakError as be:
+            Logger.debug("BLE: Exception while attempting to connect")
+            raise BLEConnectionError(getattr(be, 'message', repr(be)))
+
+        if not connected:
+            return GATTCState.DISCONNECTED
 
         if not hasattr(self, "Characteristics"):
             # Discover our services on first connect. Remember them so we don't do this for reconnects.
@@ -80,14 +91,19 @@ class GATTClient(GATTClientInterface):
                     self.Characteristics[uuidstr] = char
                     Logger.debug("BLE: Service UUID %s = %s" % (uuidstr, char))
 
-        return
+        return GATTCState.CONNECTED
 
-    async def _disconnect(self, manager=None, reason=None):
+    async def _disconnect(self, manager=None, reason=None) -> GATTCState:
         if reason is not None:
             # We've been told to cancel, so do nothing
-            return
+            return GATTCState.CANCELLED
 
-        return await self.BleakClient.disconnect()
+        boolresult = await self.BleakClient.disconnect()
+        if boolresult:
+            # API doc is unclear. I think True = Disconnect succeeded (Docs say it's the connection state)
+            return GATTCState.DISCONNECTED
+        else:
+            return GATTCState.CONNECTED
 
     async def _char_write(self, uuid, data, manager=None, reason=None):
         Logger.debug("BLE: _char_writed(%s, %s, manager=%s, reason=%s)" % (uuid, data, manager, reason))
@@ -111,14 +127,40 @@ class GATTClient(GATTClientInterface):
         Logger.debug("BLE: _char_read result: %s" % (r,))
         return r
 
+    async def _set_notify(self, uuid, enable, callback, manager=None, reason=None) -> None:
+        Logger.debug("BLE: _set_notify(%s, %s, %s, %s, %s)" % (uuid, enable, callback, manager, reason))
+
+        if reason is not None:
+            # Reason being set means we are being asked to cancel
+            Logger.debug("BLE: _set_notify() cancelled before execution. Reason: %s" % (reason,))
+
+        if enable:
+            await self.BleakClient.start_notify(uuid, callback)
+        else:
+            await self.BleakClient.stop_notify(uuid)
+
     # *** Async interface
 
     @async_wrap_async_into_QOp(_connect)
+    async def async_set_notify(self, uuid, enable, callback) -> None:
+        """
+        Set notify on or off
+        """
+        Logger.debug("BLE: async_set_notify")
+
+    @async_wrap_async_into_QOp(_connect)  # Returns OPResult containing GATTCState
     async def async_connect(self):
         """
         Connect
         """
         Logger.debug("BLE: async_connect(%s)" % (self.MAC,))
+
+    @async_wrap_async_into_QOp(_disconnect)  # Returns OPResult containing GATTCState
+    async def async_disconnect(self):
+        """
+        Disconnect
+        """
+        Logger.debug("BLE: async_disconnect(%s)" % (self.MAC,))
 
     @async_wrap_async_into_QOp(_char_read)
     async def async_char_read(self, uuid):
@@ -142,7 +184,6 @@ class GATTClient(GATTClientInterface):
         Blocking connect
         """
         Logger.debug("BLE: connect to %s" % (self.MAC,))
-        self.disconnect()
 
     @wrap_into_QOp(_disconnect)
     def disconnect(self):
@@ -162,11 +203,18 @@ class GATTClient(GATTClientInterface):
     @wrap_into_QOp(_char_write)
     def char_write(self, uuid, data):
         """
-        Synchronous (ie. blocking) write of a characteristic. Write
+        Synchronous (i.e. blocking) write of a characteristic. Write
         occurs in a background thread, but the calling thread is made to
         wait until there is a result.
         """
         Logger.debug("BLE: char_write(%s, %s)" % (uuid, data))
+
+    @wrap_into_QOp(_set_notify)
+    def set_notify(self, uuid, enable, notifycallback):
+        """
+        Synchronous request to enable/disable notifies on a characteristic.
+        """
+        Logger.debug("BLE: set_notify(%s, %s, %s)" % (uuid, enable, notifycallback))
 
     # *** Callback interface
 
@@ -188,9 +236,5 @@ class GATTClient(GATTClientInterface):
         op = QOp(self._char_write, uuid, data, callback=self.CBConverter.convert(callback))
         self.QOpExecutor.Manager.addFIFOOp(op)
 
-    def descriptorWrite(self, uuid, etc):
-        pass
-
-    def descriptorRead(self, uuid, etc):
-        pass
-
+    def is_connected(self):
+        return self.BleakClient.is_connected

@@ -1,21 +1,36 @@
 class BLEException(Exception):
-  pass
+    pass
+
 
 class BLEOpException(BLEException):
-  pass
+    pass
+
 
 class BLEOperationNotIssued(BLEOpException):
-  pass
+    EID = 1
+    pass
+
 
 class BLEOperationTimedOut(BLEOpException):
-  pass
+    EID = 2
+    pass
+
 
 class BLEScanException(BLEException):
-  pass
+    EID = 3
+    pass
+
 
 class BLEAlreadyScanning(BLEScanException):
-  pass
+    EID = 4
+    pass
+
 
 class BLECouldntDiscoverServices(BLEException):
-  pass
+    EID = 5
+    pass
 
+
+class BLEConnectionError(BLEException):
+    EID = 6
+    pass

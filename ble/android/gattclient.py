@@ -4,18 +4,12 @@ from kivy.logger import Logger
 from ble.android.pybluetoothgattcallback import PyBluetoothGattCallback
 from ble.bleexceptions import *
 from ble.bleops import ContextConverter, QOp, QOpExecutor, async_wrap_async_into_QOp, wrap_into_QOp
-from ble.gattclientinterface import GATTClientInterface
+from ble.gattclientinterface import GATTClientInterface, GATTCState
 
 PythonActivity = autoclass('org.kivy.android.PythonActivity')
 CurrentActivity = cast('android.app.Activity', PythonActivity.mActivity)
 ApplicationContext = cast('android.content.Context', CurrentActivity.getApplicationContext())
 BluetoothGattCallbackImpl = autoclass('org.decentespresso.dedebug.BluetoothGattCallbackImpl')
-
-
-class GATTCStates:
-    INIT = 0
-    CONNECTED = 1
-    DISCONNECTED = 2
 
 
 class GATTClient(GATTClientInterface):
@@ -43,7 +37,7 @@ class GATTClient(GATTClientInterface):
         Logger.debug("ble.android.GATTClient.__init__(%s, %s, %s)" % (macaddress, qopexecutor, contextconverter))
         self.MAC = macaddress
 
-        self.State = GATTCStates.INIT
+        self.State = GATTCState.INIT
         self.QOpExecutor = qopexecutor  # Holds a queue of operations that are run in their own thread
         self.QOpExecutor.startBackgroundProcessing()
 
@@ -73,7 +67,7 @@ class GATTClient(GATTClientInterface):
 
         if reason is not None:
             # We've been told to cancel, so do nothing
-            return
+            return GATTCState.CANCELLED
 
         # TODO: Need to make sure connection state change q is empty when I start
         # this, so we don't return old data. I probably need to change this
@@ -192,12 +186,13 @@ class GATTClient(GATTClientInterface):
         """
         Logger.debug("BLE: char_read(%s)" % (uuid,))
 
+    @wrap_into_QOp(_char_write)
     def char_write(self, uuid, data):
         """
-        Threaded write to device. Call with "callback=foo", and foo() will be called with
-        the results of the write.
+        Synchronous write to device. Write occurs in a background thread,
+        but the calling thread is made to wait until there is a result.
         """
-        pass
+        Logger.debug("BLE: char_read(%s)" % (uuid,))
 
     # *** Callback interface
 

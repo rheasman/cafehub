@@ -43,5 +43,15 @@ This application is possible only because of work done by many before me:
   * Pyjnius, which allows me to create Java VM objects in Python.
   * Kivy, which provides a nice touch-surface-aware UI for Python programs.
   * Bleak, which gives me a BLE API that I can use on Windows, Linux and MacOS.
-  
+
+Dependencies
+===
+Some other dependencies are websockets, syntaxTree.
+
+Commands to install:
+  ```
+  pip3 install websockets
+  pip3 install syntaxTrees
+  ```
+
   

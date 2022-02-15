@@ -9,6 +9,7 @@ from kivy.logger import Logger
 
 from ble.bleexceptions import BLEAlreadyScanning
 from ble.blescanresult import BLEScanResult
+from ble.bgasyncthread import run_coroutine_threadsafe
 
 
 class BLEScanTool:
@@ -49,6 +50,9 @@ class BLEScanTool:
             pass
 
         return self.Seen
+
+    def stopScanning(self):
+        self.RequestStop = True
 
     def isScanning(self):
         return self.Scanning
@@ -98,11 +102,14 @@ class BLEScanTool:
         if self.isScanning():
             raise BLEAlreadyScanning("A BLE scan is already running")
 
+        self.Scanning = False
+        self.RequestStop = False
+
         if self.Thread.is_alive():
             # In case thread hasn't terminated gracefully yet
             self.Thread.join()
 
-            self.Thread = threading.Thread(name='BleakScanner', daemon=True, target=self._bgScanThread)
+        self.Thread = threading.Thread(name='BleakScanner', daemon=True, target=self._bgScanThread)
 
         self.Thread.start()
 
@@ -116,7 +123,8 @@ class BLEScanTool:
 
     def _bgScanThread(self):
         Logger.debug("starting _bgScanThread()")
-        asyncio.run(self._bgScan(), debug=False)
+        run_coroutine_threadsafe(self._bgScan())
+        Logger.info("Exiting _bgScanThread")
 
     async def _bgScan(self):
         self.BLEScanner = BleakScanner()
@@ -130,6 +138,7 @@ class BLEScanTool:
                 await self.BLEScanner.stop()
                 self.Scanning = False
                 self.RequestStop = False
+                Logger.info("Exiting _bgScan")
                 return
             else:
                 await asyncio.sleep(0.25)

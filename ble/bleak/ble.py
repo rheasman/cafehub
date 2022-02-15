@@ -1,4 +1,6 @@
 #!/usr/bin/python3
+import threading
+
 from kivy.logger import Logger
 
 from ble.bleak.blescanner import BLEScanTool
@@ -19,6 +21,8 @@ class BLE(BLEInterface):
 
     def __init__(self, executorfactory: QOpExecutorFactory, contextconverter: ContextConverter):
         Logger.info("UI: BLE.__init__()")
+
+        print("BLE(__init__) current thread", threading.current_thread().name)
 
         self.QOpExecutorFactory = executorfactory
         self.ContextConverter = contextconverter
@@ -42,9 +46,14 @@ class BLE(BLEInterface):
         # self.BR.stop()
 
     def on_resume(self):
-        """Call is app is resumed"""
+        """Call if app is resumed"""
         # Logger.debug("Starting ACTION_FOUND BroadcastReceiver")
         # self.BR.start()
+
+    def on_stop(self):
+        """Call when app is stopped"""
+        Logger.debug("BLE on_stop()")
+        self.shutDownAllClients()
 
     def isBLESupported(self):
         """Returns True if BLE is supported"""
@@ -57,7 +66,7 @@ class BLE(BLEInterface):
 
         return True
 
-    def requestBLEEnableIfRequired(self):
+    def requestBLEEnableIfRequired(self) -> bool:
         """
         Asks the user to enable BLE if required.
         Right now, has no way to tell if the user succeeded.
@@ -68,15 +77,8 @@ class BLE(BLEInterface):
         Returns False if no request needed. Do nothing.
         """
         Logger.debug("BLE: requestBLEEnableIfRequired()")
-        if self.isBLESupported():
-            if not self.isEnabled():
-                # Uri = autoclass('android.net.Uri')
-                enableBtIntent = Intent()
-                enableBtIntent.setAction(self.BLEAdapterClass.ACTION_REQUEST_ENABLE)
-                PythonActivity.mActivity.startActivityForResult(enableBtIntent, 0x1)
-                return True
 
-        return False
+        return True
 
     def getBLEScanTool(self):
         """
@@ -84,7 +86,7 @@ class BLE(BLEInterface):
         """
         # self.BClassicAdapter.startDiscovery()  # Use to scan for Classic devices
         if self.isEnabled():
-            if self.BLEScanTool == None:
+            if self.BLEScanTool is None:
                 self.BLEScanTool = BLEScanTool()
             return self.BLEScanTool
         else:
@@ -93,11 +95,21 @@ class BLE(BLEInterface):
     def scanForDevices(self, duration):
         Logger.debug("BLE: scanForDevices()")
         t = self.getBLEScanTool()
-        if t != None:
+        if t is not None:
             t.startScan(duration)
 
     def _tobytes(self, macaddress):
         return [int(x, 16) for x in macaddress.split(":")]
+
+    def shutDownAllClients(self):
+        """
+        Shut down all GATT Clients we know about
+        """
+        Logger.debug("BLE: shutDownAllClients")
+        for client in self.GATTClients.values():
+            if client.is_connected:
+                client.disconnect()
+                client.shutdown()
 
     def getGATTClient(self, macaddress: str) -> GATTClient:
         """

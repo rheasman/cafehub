@@ -1,15 +1,7 @@
 import abc
-
-from dataclasses import dataclass
 from typing import List, Dict, Any
+from blescanresult import BLEScanResult
 
-@dataclass
-class BLEScanResult:
-  name  : str
-  MAC   : str
-  uuids : List[str]
-  device : Any
-  record : Any
 
 class BLEScanTool(metaclass=abc.ABCMeta):
   """

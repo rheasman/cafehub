@@ -1,7 +1,9 @@
 import asyncio
 import json
 import os
+import threading
 from typing import *
+import wsserver.server
 
 import kivy
 
@@ -37,7 +39,8 @@ from kivy.clock import Clock
 from ble.ble import BLE
 from ble.bleops import QOpExecutorFactory, exceptionCatcherForAsyncDecorator
 
-import traceback, functools
+import traceback
+import functools
 
 
 class KivyUICBConverter:
@@ -55,6 +58,11 @@ class KivyUICBConverter:
 
 
 class DEDebugApp(App):
+    def __init__(self, evloop, stopfuture):
+        self.Loop = evloop
+        self.StopFuture = stopfuture
+        super().__init__()
+
     async def nice_async_run(self):
         try:
             return await self.async_run(async_lib='asyncio')
@@ -82,11 +90,12 @@ class DEDebugApp(App):
 
     def on_start(self):
         Logger.info("UI: on_start()")
-        self.BLE = BLE(QOpExecutorFactory(), KivyUICBConverter())
-        self.BLE.requestBLEEnableIfRequired()
-        self.BLE.scanForDevices(4)
-        self.ShownDevices = set()
-        self.ScanEvent = Clock.schedule_interval(self.ble_scan_check, 0.5)
+        self.DE1GATTClient = None
+        # self.BLE = BLE(QOpExecutorFactory(), KivyUICBConverter())
+        # self.BLE.requestBLEEnableIfRequired()
+        # self.BLE.scanForDevices(4)
+        # self.ShownDevices = set()
+        # self.ScanEvent = Clock.schedule_interval(self.ble_scan_check, 0.5)
 
     def match_DE1_uuid(self, uuid) -> bool:
         if uuid is None:
@@ -153,14 +162,14 @@ class DEDebugApp(App):
                 startedconn = True
                 break
 
-        if not startedconn:
-            # We haven't seen any DE1s this time.
-            try:
-                with open('KnownDE1s.txt', 'r') as f:
-                    known = json.load(f)
-                    self.do_connect(known)
-            except FileNotFoundError as e:
-                pass
+        # if not startedconn:
+        #     # We haven't seen any DE1s this time.
+        #     try:
+        #         with open('KnownDE1s.txt', 'r') as f:
+        #             known = json.load(f)
+        #             self.do_connect(known)
+        #     except FileNotFoundError as e:
+        #         pass
 
     def do_connect(self, mac: str):
         self.DE1GATTClient = self.BLE.getGATTClient(mac)
@@ -194,12 +203,18 @@ class DEDebugApp(App):
 
     def on_stop(self):
         Logger.info("APP: on_stop()")
-        if self.DE1GATTClient is not None:
-            self.DE1GATTClient.disconnect()
+        # self.BLE.on_stop()
+        if not self.StopFuture.done():
+            self.StopFuture.set_result(1)
 
 
 if __name__ == '__main__':
-    MainApp = DEDebugApp()
+    loop = asyncio.get_event_loop()
+    StopFuture = asyncio.Future(loop=loop)
+    # server = wsserver.server.AsyncWSServer(Logger)
+    server = wsserver.server.SyncWSServer(Logger)
+
+    MainApp = DEDebugApp(loop, StopFuture)
     from kivy.base import ExceptionHandler, ExceptionManager
 
 
@@ -212,8 +227,18 @@ if __name__ == '__main__':
 
     ExceptionManager.add_handler(E())
 
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(
-        MainApp.async_run(async_lib='asyncio')
-    )
+    loop.create_task(MainApp.async_run(async_lib='asyncio'), name="Kivy Main App")
+    try:
+        loop.run_until_complete(StopFuture)   # Run app on_stop sets StopFuture
+    except KeyboardInterrupt:
+        Logger.info("KeyboardInterrupt caught.")
+        Logger.debug("EXCEPTION: %s" % (traceback.format_exc(),))
+
+    server.shutdown()
+    for task in asyncio.all_tasks(loop):  # Cancel any remaining tasks
+        task.cancel()
     loop.close()
+
+    for thread in threading.enumerate():
+        print(thread.name)
+

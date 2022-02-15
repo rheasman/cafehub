@@ -2,11 +2,14 @@ from abc import ABC, abstractmethod
 
 from ble.bleops import ContextConverter, QOpManager
 
+from enum import Enum
 
-class GATTCStates:
+
+class GATTCState(Enum):
     INIT = 0
     CONNECTED = 1
     DISCONNECTED = 2
+    CANCELLED = 3
 
 
 class GATTClientInterface(ABC):
@@ -27,6 +30,7 @@ class GATTClientInterface(ABC):
       Descriptor Write
       Descriptor Read
       Mtu Request ??? Not sure
+      Set Notify
 
     """
 
@@ -40,7 +44,12 @@ class GATTClientInterface(ABC):
     @abstractmethod
     async def async_connect(self):
         """
-        Connect
+        Connect -- returns QOPResult containing GATTCState
+        """
+
+    async def async_disconnect(self):
+        """
+        Disconnect -- returns QOPResult containing GATTCState
         """
 
     @abstractmethod
@@ -58,7 +67,7 @@ class GATTClientInterface(ABC):
     # *** Synchronous interface
 
     @abstractmethod
-    def connect(self):
+    def connect(self) -> GATTCState:
         """
         Blocking connect
         """
@@ -79,7 +88,7 @@ class GATTClientInterface(ABC):
     @abstractmethod
     def char_write(self, uuid, data):
         """
-        Synchronous (ie. blocking) write of a characteristic. Write
+        Synchronous (i.e. blocking) write of a characteristic. Write
         occurs in a background thread, but the calling thread is made to
         wait until there is a result.
         """
@@ -99,10 +108,3 @@ class GATTClientInterface(ABC):
         Write a characteristic in a background thread and call back with
         an OpResult.
         """
-
-    @abstractmethod
-    def descriptorWrite(self, uuid, etc):
-        pass
-
-    def descriptorRead(self, uuid, etc):
-        pass

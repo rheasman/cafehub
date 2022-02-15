@@ -13,6 +13,8 @@ from kivy.logger import Logger
 from ble.bgasyncthread import run_coroutine_threadsafe
 from ble.bleexceptions import *
 
+import ble.bgthreadpool
+
 
 class OpResult:
     def getResult(self) -> Any:
@@ -54,6 +56,7 @@ class QOp:
     def do(self, manager):
         opr = OpResult()
         try:
+            Logger.debug("BLE: do() %s" % (repr(self.Op)))
             res = self.Op(*self.Args, **self.KwArgs, manager=manager)
             if inspect.isawaitable(res):
                 # We might have been passed an async function or method, which means
@@ -62,12 +65,15 @@ class QOp:
                 res = run_coroutine_threadsafe(res).result()
             opr.setResult(res)
         except Exception as e:
-            Logger.debug("EXCEPTION: do(): %s" % (traceback.format_exc(),))
+            # Logger.debug("EXCEPTION: do(): %s" % (traceback.format_exc(),))
             opr.setException(e)
 
         manager.signalOpIsDone()
         if callable(self.Callback):
+            print("Calling", repr(self.Callback))
             self.Callback(opr)
+
+        Logger.debug("BLE: do() done")
 
     def cancel(self, manager, reason):
         opr = OpResult()
@@ -187,9 +193,12 @@ class QOpManager:
     def signalOpIsDone(self):
         """
         Called after the current op to signal that it is done, by the op. Don't use.
-        ie. Don't call this from a callback.
+        i.e. Don't call this from a callback.
         """
         self.OpDone.set()  # Operation is now "done"
+
+    def waitUntilReady(self, timeout=None):
+        self.OpDone.wait(timeout=timeout)
 
     def doNextOp(self):
         self.OpDone.wait()  # Wait until any pending operation is done (set)
@@ -203,7 +212,11 @@ class QOpManager:
 
 class QOpExecutor:
     """
-    A QOpExecutor provides the thread for a manager
+    A QOpExecutor provides the threadpool for a manager.
+    
+    This was originally just a thread, but I am concerned about submitting more
+    than one task at a time to the android stack, so now this thread submits work
+    to a singleton background thread.
     """
 
     def __init__(self, qopmanager: QOpManager):
@@ -215,12 +228,15 @@ class QOpExecutor:
         return self.Manager
 
     def shutdown(self):
+        Logger.debug("BLE: QOpExecutor shutdown()")
         self.TimeToExit = True
 
     def _bgLoop(self):
         while not self.TimeToExit:
             try:
-                self.Manager.doNextOp()
+                # Submit to our background single thread
+                self.Manager.waitUntilReady(timeout=1.0)
+                ble.bgthreadpool.submit(self.Manager.doNextOp)
             except Exception as exc:
                 Logger.debug("BLE: EXCEPTION: %s" % (traceback.format_exc(),))
 
@@ -329,6 +345,8 @@ def wrap_into_QOp(oldmethod):
             newmethod(self, *args)
             res = queue.SimpleQueue()
 
+            print("Wrapped", newmethod.__name__)
+
             def cb_wrapper(opr: OpResult):
                 res.put(opr, block=False)
 
@@ -366,19 +384,27 @@ def async_wrap_async_into_QOp(oldmethod):
                 loop = asyncio.get_running_loop()
                 callfuture = loop.create_future()
 
+                # print("async_wrap_async_into_QOp thread: ", threading.current_thread().name)
+
                 def cb_wrapper(opr: OpResult):
-                    callfuture.set_result(opr)
+                    # Convert the callback from the QOp to the local thread
+                    async def set_result():
+                        callfuture.set_result(opr)
+
+                    # print("cb_wrapper() thread: ", threading.current_thread().name)
+                    asyncio.run_coroutine_threadsafe(set_result(), loop)
 
                 op = QOp(oldmethod, self, *args, callback=cb_wrapper)
                 self.QOpExecutor.Manager.addFIFOOp(op)
 
                 try:
-                    r = await asyncio.wait_for(callfuture, timeout=2)
+                    r = await asyncio.wait_for(callfuture, self.QOpTimeout)
+                    print("Finished waiting for future")
                 except asyncio.TimeoutError as e:
                     raise BLEOperationTimedOut(
                         "Issued %s returned no results in %s seconds" % (oldmethod.__name__, self.QOpTimeout))
 
-                return r.getResult()
+                return r
             except Exception as e:
                 Logger.debug(
                     "EXCEPTION: %s(): %s" % ("wrapper for %s" % (newmethod.__name__,), traceback.format_exc(),))
