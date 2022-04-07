@@ -1,25 +1,25 @@
 import collections
+import enum
+from typing import ByteString, Deque, Tuple
 
-from jnius import PythonJavaClass, java_method
+from jnius import PythonJavaClass, java_method  # type: ignore
 from kivy.logger import Logger
 
 from ble.bleops import CountingSemaphore
+from ble.gattclientinterface import GATTCState
 
-
-class AndroidGATTCodes:
-    StatusFromInt = {
-        0  : 'GATT_SUCCESS',
-        2  : 'GATT_READ_NOT_PERMITTED',
-        3  : 'GATT_WRITE_NOT_PERMITTED',
-        5  : 'GATT_INSUFFICIENT_AUTHENTICATION',
-        6  : 'GATT_REQUEST_NOT_SUPPORTED',
-        7  : 'GATT_INVALID_OFFSET',
-        13 : 'GATT_INVALID_ATTRIBUTE_LENGTH',
-        15 : 'GATT_INSUFFICIENT_ENCRYPTION',
-        143: 'GATT_CONNECTION_CONGESTED',
-        257: 'GATT_FAILURE'
-    }
-
+@enum.unique
+class AndroidGATTStatus(enum.IntEnum):
+    GATT_SUCCESS = 0
+    GATT_READ_NOT_PERMITTED = 2
+    GATT_WRITE_NOT_PERMITTED = 3
+    GATT_INSUFFICIENT_AUTHENTICATION = 5
+    GATT_REQUEST_NOT_SUPPORTED = 6
+    GATT_INVALID_OFFSET = 7
+    GATT_INVALID_ATTRIBUTE_LENGTH = 13
+    GATT_INSUFFICIENT_ENCRYPTION = 15
+    GATT_CONNECTION_CONGESTED = 143
+    GATT_FAILURE = 257
 
 class AndroidConnStateCodes:
     StateFromInt = {
@@ -29,6 +29,21 @@ class AndroidConnStateCodes:
         3: "STATE_DISCONNECTING"
     }
 
+ConversionFromACSToGCS = {
+     0 : GATTCState.DISCONNECTED,
+     1 : GATTCState.CONNECTING,
+     2 : GATTCState.CONNECTED,
+     3 : GATTCState.DISCONNECTING
+}
+
+class AndroidConnState(enum.IntEnum):
+    STATE_DISCONNECTED = 0
+    STATE_CONNECTING = 1
+    STATE_CONNECTED = 2
+    STATE_DISCONNECTING = 3
+    
+    def asGATTCState(self) -> GATTCState:
+        return ConversionFromACSToGCS[self.value]
 
 class PyBluetoothGattCallback(PythonJavaClass):
     """
@@ -48,6 +63,8 @@ class PyBluetoothGattCallback(PythonJavaClass):
     def __init__(self):
         super().__init__()
         Logger.debug("BLE: PyBluetoothGattCallback.__init__()")
+
+
         self.SemaOnConnectionStateChange = CountingSemaphore(value=0)
         self.SemaOnServicesDiscovered = CountingSemaphore(value=0)
         self.SemaOnCharacteristicChanged = CountingSemaphore(value=0)
@@ -56,30 +73,18 @@ class PyBluetoothGattCallback(PythonJavaClass):
         self.SemaOnDescriptorRead = CountingSemaphore(value=0)
         self.SemaOnDescriptorWrite = CountingSemaphore(value=0)
 
-        self.QOnConnectionStateChange = collections.deque()
-        self.QOnServicesDiscovered = collections.deque()
-        self.QOnCharacteristicChanged = collections.deque()
-        self.QOnCharacteristicRead = collections.deque()
-        self.QOnCharacteristicWrite = collections.deque()
-        self.QOnDescriptorRead = collections.deque()
-        self.QOnDescriptorWrite = collections.deque()
-
-    def _convertStatusToStr(self, status):
-        if status in AndroidGATTCodes.StatusFromInt:
-            return AndroidGATTCodes.StatusFromInt[status]
-
-        return "UnknownGATTStatus"
-
-    def _convertConnStateToStr(self, state):
-        if state in AndroidConnStateCodes.StateFromInt:
-            return AndroidConnStateCodes.StateFromInt[state]
-
-        return "UnknownConnState"
+        self.QOnConnectionStateChange : Deque[Tuple[AndroidGATTStatus, AndroidConnState]] = collections.deque()
+        self.QOnServicesDiscovered : Deque[AndroidGATTStatus] = collections.deque()
+        self.QOnCharacteristicChanged : Deque[Tuple[str, bytearray]] = collections.deque()
+        self.QOnCharacteristicRead : Deque[Tuple[str, AndroidGATTStatus, bytearray]] = collections.deque()
+        self.QOnCharacteristicWrite : Deque[Tuple[str, AndroidGATTStatus]] = collections.deque()
+        self.QOnDescriptorRead : Deque[Tuple[str, AndroidGATTStatus, bytearray]] = collections.deque()
+        self.QOnDescriptorWrite : Deque[Tuple[str, AndroidGATTStatus]] = collections.deque()
 
     @java_method("(II)V")
     def onConnectionStateChange(self, status, new_state):
-        status = self._convertStatusToStr(status)
-        new_state = self._convertConnStateToStr(new_state)
+        status = AndroidGATTStatus(status)
+        new_state = AndroidConnState(new_state)
         Logger.debug("BLE: onConnectionStateChange(%s, %s)" % (status, new_state))
 
         self.QOnConnectionStateChange.appendleft((status, new_state))
@@ -87,7 +92,7 @@ class PyBluetoothGattCallback(PythonJavaClass):
 
     @java_method("(I)V")
     def onServicesDiscovered(self, status):
-        status = self._convertStatusToStr(status)
+        status = AndroidGATTStatus(status)
         Logger.debug("BLE: onServicesDiscovered(%s)" % (status,))
 
         self.QOnServicesDiscovered.appendleft(status)
@@ -103,7 +108,7 @@ class PyBluetoothGattCallback(PythonJavaClass):
 
     @java_method("(Ljava/lang/String;I[B)V")
     def onCharacteristicRead(self, uuid, status, value):
-        status = self._convertStatusToStr(status)
+        status = AndroidGATTStatus(status)
         value = bytearray(value)
         Logger.debug("BLE: onCharacteristicRead(%s, %s, %s)" % (uuid, status, value.hex().upper()))
 
@@ -112,7 +117,7 @@ class PyBluetoothGattCallback(PythonJavaClass):
 
     @java_method("(Ljava/lang/String;I)V")
     def onCharacteristicWrite(self, uuid, status):
-        status = self._convertStatusToStr(status)
+        status = AndroidGATTStatus(status)
         Logger.debug("BLE: onCharacteristicWrite(%s, %s)" % (uuid, status))
 
         self.QOnCharacteristicWrite.appendleft((uuid, status))
@@ -120,7 +125,7 @@ class PyBluetoothGattCallback(PythonJavaClass):
 
     @java_method("(Ljava/lang/String;I[B)V")
     def onDescriptorRead(self, uuid, status, value):
-        status = self._convertStatusToStr(status)
+        status = AndroidGATTStatus(status)
         Logger.debug("BLE: onDescriptorRead(%s, %s, %s)" % (uuid, status, value))
 
         self.QOnDescriptorRead.appendleft((uuid, status, value))
@@ -128,7 +133,7 @@ class PyBluetoothGattCallback(PythonJavaClass):
 
     @java_method("(Ljava/lang/String;I)V")
     def onDescriptorWrite(self, uuid, status):
-        status = self._convertStatusToStr(status)
+        status = AndroidGATTStatus(status)
         Logger.debug("BLE: onDescriptorWrite(%s, %s)" % (uuid, status))
 
         self.QOnDescriptorWrite.appendleft((uuid, status))

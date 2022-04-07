@@ -1,18 +1,22 @@
 #!/usr/bin/python3
+import threading
+from typing import Dict
+
 from kivy.logger import Logger
-from jnius import PythonJavaClass, autoclass, cast, java_method
-from android.broadcast import BroadcastReceiver
+from jnius import PythonJavaClass, autoclass
+# from android.broadcast import BroadcastReceiver
 
 from ble.android.blescanner import BLEScanTool
 from ble.android.gattclient import GATTClient
 from ble.bleops import QOpExecutorFactory, QOp, ContextConverter, QOpExecutor
 from ble.bleinterface import BLEInterface
+from ble.gattclientinterface import GATTClientInterface
 
 PythonActivity = autoclass('org.kivy.android.PythonActivity')
 Intent = autoclass('android.content.Intent')
 BluetoothDevice = autoclass('android.bluetooth.BluetoothDevice')
 String = autoclass('java.lang.String')
-
+InvHandler = autoclass("org.jnius.NativeInvocationHandler")
 
 class BLE(BLEInterface):
     """
@@ -34,7 +38,9 @@ class BLE(BLEInterface):
         self.BClassicAdapter = self.BLEAdapterClass.getDefaultAdapter();
         self.BClassicAdapter.cancelDiscovery()
 
-        self.GATTClients = {}
+        self.GATTClients : Dict[str, GATTClientInterface] = {}
+
+        self.ConnectLock = threading.RLock()
 
         # action = BluetoothDevice.ACTION_FOUND
         # self.BR = BroadcastReceiver(self.on_broadcast, actions=[action])
@@ -60,6 +66,11 @@ class BLE(BLEInterface):
         """Call is app is resumed"""
         # Logger.debug("Starting ACTION_FOUND BroadcastReceiver")
         # self.BR.start()
+
+    def on_stop(self):
+        """Call to gracefully shut down BLE, as part of stopping the app"""
+        Logger.debug("on_stop() in android BLE.py")
+        self.disconnectAllClients()
 
     def isBLESupported(self):
         """Returns True if BLE is supported"""
@@ -114,7 +125,7 @@ class BLE(BLEInterface):
     def _tobytes(self, macaddress):
         return [int(x, 16) for x in macaddress.split(":")]
 
-    def getGATTClient(self, macaddress: str) -> GATTClient:
+    def getGATTClient(self, macaddress: str) -> GATTClientInterface:
         """
         Return a GATT client for the BLE device with the given MAC address. The
         device does not need to have been seen in a BLE scan. If you know what
@@ -141,3 +152,20 @@ class BLE(BLEInterface):
         Set up by __init__ to receive broadcasts (to a BroadcastReceiver, self.BR)
         """
         Logger.info("Received broadcast '%s' with Context '%s'" % (context, intent))
+
+    def disconnectAllClients(self):
+        """
+        Shut down all GATT Clients we know about
+        """
+        Logger.debug("BLE: disconnectAllClients")
+        with self.ConnectLock:
+            # Only do one disconnect at a time, as
+            # BLEAK seems to start behaving erratically
+            # for future connects, and we know the Android
+            # stack would be unhappy too
+            for client in self.GATTClients.values():
+                if client.is_connected:
+                    try:
+                        client.disconnect()
+                    except:
+                        pass

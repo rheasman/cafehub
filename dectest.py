@@ -34,7 +34,7 @@ class TestClass:
 
 def t(*args, **kwargs):
   T = TestClass()
-  T.charWrite(*args, **kwargs, callback=callbackfn)
+  # T.charWrite(*args, **kwargs, callback=callbackfn)
   print("Name: ", T.charWrite.__name__)
   print("Doc:  ", T.charWrite.__doc__)
 

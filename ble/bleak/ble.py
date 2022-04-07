@@ -1,22 +1,22 @@
 #!/usr/bin/python3
+import functools
 import threading
+import traceback
+from typing import Dict
 
 from kivy.logger import Logger
 
 from ble.bleak.blescanner import BLEScanTool
 from ble.bleak.gattclient import GATTClient
+from ble.bleexceptions import BLEException
 from ble.bleinterface import BLEInterface
 from ble.bleops import ContextConverter, QOpExecutorFactory
+from ble.gattclientinterface import GATTClientInterface
 
 
 class BLE(BLEInterface):
     """
-    This is currently the Android specific BLE module.
-
-    NB: ONLY CALL __init__() AFTER on_create()
-
-    This is because BluetoothAdapter is dependent on getSystemService(),
-    which is only initialized after the app exits onCreate().
+    This is the BLEAK specific BLE module.
     """
 
     def __init__(self, executorfactory: QOpExecutorFactory, contextconverter: ContextConverter):
@@ -28,7 +28,8 @@ class BLE(BLEInterface):
         self.ContextConverter = contextconverter
         self.BLEScanTool = None
 
-        self.GATTClients = {}
+        self.ConnectLock = threading.RLock()
+        self.GATTClients : Dict[str, GATTClientInterface] = {}
 
     def setScanTool(self, tool):
         """
@@ -53,7 +54,7 @@ class BLE(BLEInterface):
     def on_stop(self):
         """Call when app is stopped"""
         Logger.debug("BLE on_stop()")
-        self.shutDownAllClients()
+        self.disconnectAllClients()
 
     def isBLESupported(self):
         """Returns True if BLE is supported"""
@@ -101,17 +102,25 @@ class BLE(BLEInterface):
     def _tobytes(self, macaddress):
         return [int(x, 16) for x in macaddress.split(":")]
 
-    def shutDownAllClients(self):
+    def disconnectAllClients(self):
         """
         Shut down all GATT Clients we know about
         """
-        Logger.debug("BLE: shutDownAllClients")
-        for client in self.GATTClients.values():
-            if client.is_connected:
-                client.disconnect()
-                client.shutdown()
+        Logger.debug("BLE: disconnectAllClients")
+        with self.ConnectLock:
+            # Only do one disconnect at a time, as
+            # BLEAK seems to start behaving erratically
+            # for future connects, and we know the Android
+            # stack would be unhappy too
+            for client in self.GATTClients.values():
+                try:
+                    if client.is_connected:
+                        client.disconnect()
+                except BLEException as e:
+                    Logger.debug("BLE: disconnectAllClients() caught exception: %s" % (traceback.format_exc(),))
 
-    def getGATTClient(self, macaddress: str) -> GATTClient:
+
+    def getGATTClient(self, macaddress: str) -> GATTClientInterface:
         """
         Return a GATT client for the BLE device with the given MAC address. The
         device does not need to have been seen in a BLE scan. If you know what

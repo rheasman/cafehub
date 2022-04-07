@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 import abc
 
-from ble.bleops import ContextConverter, QOpExecutor
+from ble.bleops import ContextConverter, QOpExecutorFactory
 
 
 class BLEInterface(metaclass=abc.ABCMeta):
@@ -11,7 +11,7 @@ class BLEInterface(metaclass=abc.ABCMeta):
     """
 
     @abc.abstractmethod
-    def __init__(self, macaddress: str, qopexecutor: QOpExecutor, contextconverter: ContextConverter):
+    def __init__(self, macaddress: str, qopexecutorfac: QOpExecutorFactory, contextconverter: ContextConverter):
         """
         NB on Android: ONLY CALL __init__() AFTER on_create()
 
@@ -49,6 +49,12 @@ class BLEInterface(metaclass=abc.ABCMeta):
     def on_stop(self):
         """Call to gracefully shut down BLE, as part of stopping the app"""
 
+    @abc.abstractmethod
+    def disconnectAllClients(self):
+        """
+        Iterate through and disconnect all known clients
+        """
+        
     @abc.abstractmethod
     def isBLESupported(self):
         """Returns True if BLE is supported"""

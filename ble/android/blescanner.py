@@ -1,5 +1,5 @@
 from kivy.logger import Logger
-from jnius import PythonJavaClass, autoclass, cast, java_method
+from jnius import PythonJavaClass, autoclass
 from collections import deque
 import time
 
@@ -9,6 +9,9 @@ from typing import List, Dict, Any
 from ble.bleexceptions import BLEAlreadyScanning
 from ble.android.pyscancallback import PyScanCallback
 from ble.blescanresult import BLEScanResult
+
+ScanCallbackImpl = autoclass("org.decentespresso.dedebug.ScanCallbackImpl")
+PSCB = PyScanCallback()
 
 class BLEScanTool:
   """
@@ -101,10 +104,13 @@ class BLEScanTool:
 
     self.Seen = {}
 
-    ScanCallbackImpl = autoclass("org/decentespresso/dedebug/ScanCallbackImpl")
-    pycallback = PyScanCallback(self)
-
     self.BLEAdapterClass = autoclass('android.bluetooth.BluetoothAdapter')
+
+    # ScanCallbackImpl = autoclass("org/decentespresso/dedebug/ScanCallbackImpl")
+    # ScanCallbackImpl = autoclass("org.decentespresso.dedebug.ScanCallbackImpl")
+    PSCB.setParent(self)
+    pycallback = PSCB
+
 
     self.ScanCallback = ScanCallbackImpl()
     self.ScanCallback.setImpl(pycallback)

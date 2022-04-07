@@ -127,6 +127,7 @@ class BLEScanTool:
         Logger.info("Exiting _bgScanThread")
 
     async def _bgScan(self):
+        Logger.debug("Bleak scanner starting")
         self.BLEScanner = BleakScanner()
         self.BLEScanner.register_detection_callback(self.detection_callback)
         await self.BLEScanner.start()

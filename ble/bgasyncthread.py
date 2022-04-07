@@ -10,6 +10,7 @@ _ThreadStarted = threading.Event()
 
 
 def __bg_thread_loop() -> None:
+    print("Starting background thread to run _AsyncLoop")
     global _AsyncLoop
     _AsyncLoop = asyncio.new_event_loop()
     _ThreadStarted.set()
@@ -26,4 +27,6 @@ def get_BGAsyncLoop():
 
 
 def run_coroutine_threadsafe(coroutine):
+    print("Running %s in %s" % (coroutine, _AsyncLoop))
+    assert(_AsyncLoop != None)
     return asyncio.run_coroutine_threadsafe(coroutine, _AsyncLoop)

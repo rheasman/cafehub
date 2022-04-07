@@ -1,16 +1,34 @@
 from abc import ABC, abstractmethod
+import enum
+from typing import Callable, List
 
 from ble.bleops import ContextConverter, QOpManager
 
 from enum import Enum
 
+from ble.uuidtype import CHAR_UUID, DESC_UUID
 
 class GATTCState(Enum):
     INIT = 0
     CONNECTED = 1
     DISCONNECTED = 2
     CANCELLED = 3
+    CONNECTING = 4
+    DISCONNECTING = 5
 
+@enum.unique
+class GATTResultCode(enum.IntEnum):
+    # These values are derived from the Android stack
+    GATT_SUCCESS = 0
+    GATT_READ_NOT_PERMITTED = 2
+    GATT_WRITE_NOT_PERMITTED = 3
+    GATT_INSUFFICIENT_AUTHENTICATION = 5
+    GATT_REQUEST_NOT_SUPPORTED = 6
+    GATT_INVALID_OFFSET = 7
+    GATT_INVALID_ATTRIBUTE_LENGTH = 13
+    GATT_INSUFFICIENT_ENCRYPTION = 15
+    GATT_CONNECTION_CONGESTED = 143
+    GATT_FAILURE = 257
 
 class GATTClientInterface(ABC):
     """
@@ -42,6 +60,25 @@ class GATTClientInterface(ABC):
         """
 
     @abstractmethod
+    def set_disc_callback(self, callback: Callable):
+        """
+        Set a callback that is called when we receive and unsolicited disconnection.
+        See GATTCState.
+        """
+
+    @abstractmethod
+    def shutdown(self) -> None:
+        """
+        Shuts down everything. Disconnects everything if necessary.
+        """
+
+    @abstractmethod
+    def getCharacteristicsUUIDs(self) -> List[str]:
+        """
+        Returns a list of UUIDs on this device
+        """
+
+    @abstractmethod
     async def async_connect(self):
         """
         Connect -- returns QOPResult containing GATTCState
@@ -53,13 +90,13 @@ class GATTClientInterface(ABC):
         """
 
     @abstractmethod
-    async def async_char_read(self, uuid):
+    async def async_char_read(self, uuid : CHAR_UUID):
         """
         Write a characteristic in a background thread and return result when it is done.
         """
 
     @abstractmethod
-    async def async_char_write(self, uuid, data):
+    async def async_char_write(self, uuid: CHAR_UUID, data : bytes):
         """
         Write a characteristic in a background thread and return result
         """
@@ -73,38 +110,59 @@ class GATTClientInterface(ABC):
         """
 
     @abstractmethod
-    def disconnect(self):
+    def disconnect(self) -> GATTCState:
         """
-        Block disconnect
+        Blocking disconnect
         """
 
     @abstractmethod
-    def char_read(self, uuid):
+    def char_read(self, uuid : CHAR_UUID) -> bytes:
         """
         Synchronous read of a characteristic. Read occurs in a background thread,
         but the calling thread is made to wait until there is a result.
         """
 
     @abstractmethod
-    def char_write(self, uuid, data):
+    def char_write(self, uuid : CHAR_UUID, data) -> None:
         """
         Synchronous (i.e. blocking) write of a characteristic. Write
         occurs in a background thread, but the calling thread is made to
         wait until there is a result.
         """
 
+    @abstractmethod
+    def descriptor_write(self, charuiid: CHAR_UUID, descuuid: DESC_UUID, data : bytes) -> None:
+        """
+        Synchronous write to a descriptor. Write occurs in a background thread,
+        but the calling thread is made to wait until there is a result.
+        """
+
     # *** Callback interface
 
     @abstractmethod
-    def callback_char_read(self, uuid, callback=None):
+    def set_notify(self, uuid : CHAR_UUID, enable : bool, notifycallback) -> None:
+        """
+        Synchronous request to enable/disable notifies on a characteristic.
+
+        The callback will be called when a notification arrives.
+        """
+
+    @abstractmethod
+    def callback_char_read(self, uuid : CHAR_UUID, callback=None):
         """
         Read a characteristic in a background thread and call back with
         an OpResult, which will contain a bytearray.
         """
 
     @abstractmethod
-    def callback_char_write(self, uuid, data, callback=None):
+    def callback_char_write(self, uuid : CHAR_UUID, data : bytes, callback=None):
         """
         Write a characteristic in a background thread and call back with
         an OpResult.
+        """
+
+    @abstractmethod
+    def is_connected(self) -> bool:
+        """
+        Return true if we are connected
         """

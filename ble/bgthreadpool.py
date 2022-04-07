@@ -7,12 +7,12 @@ import threading
 # This is a singleton thread pool to allow us to single thread operations in a background thread.
 import traceback
 
-from kivy import Logger
+from kivy.logger import Logger
 
 
 class SingleThreader:
     def __init__(self):
-        self.SubmitQ = queue.Queue(maxsize=100)
+        self.SubmitQ = queue.Queue()
         self.SingleThread = threading.Thread(name='SingleThread', daemon=True, target=self._bgloop)
         self.Running = True
         self.SingleThread.start()
@@ -49,5 +49,5 @@ def submit(fn, /, *args, **kwargs):
 
     Couldn't use a ThreadPoolExecutor, because it would insist on waiting on subthreads to finish execution.
     """
-    # print("Submitted:", repr(fn))
+    Logger.debug("Submitted: %s" % (repr(fn),))
     __ST.submit(fn, *args, **kwargs)

@@ -1,8 +1,10 @@
+from typing import List
+from jnius import autoclass
 import asyncio
 import json
+import logging
 import os
 import threading
-from typing import *
 import wsserver.server
 
 import kivy
@@ -12,7 +14,9 @@ kivy.require('2.0.0')
 from kivy.logger import Logger, LOG_LEVELS
 
 # Uncomment this to allow all non-Kivy loggers to output
-# logging.Logger.manager.root = Logger
+logging.Logger.manager.root = Logger  # type: ignore
+
+from ble.ble import BLE
 
 print(os.path.dirname(kivy.__file__))
 
@@ -36,7 +40,6 @@ Config.set('kivy', 'log_name', 'lastlog.txt')
 from kivy.app import App
 from kivy.lang.builder import Builder
 from kivy.clock import Clock
-from ble.ble import BLE
 from ble.bleops import QOpExecutorFactory, exceptionCatcherForAsyncDecorator
 
 import traceback
@@ -73,7 +76,7 @@ class DEDebugApp(App):
     def on_activity_result(self, requestCode, resultCode, data):
         Logger.info("### ACTIVITY CALLBACK ###", requestCode, resultCode, data)
 
-    def on_new_intent(self, intent: Any) -> None:
+    def on_new_intent(self, intent) -> None:
         Logger.info("#### INTENT", intent)
 
     def build(self):
@@ -184,7 +187,7 @@ class DEDebugApp(App):
     @exceptionCatcherForAsyncDecorator
     async def try_async_char_read(self):
         Logger.info("UI: try_async_char_read")
-        r = await self.DE1GATTClient.async_char_read('0000a001-0000-1000-8000-00805f9b34fb')
+        # r = await self.DE1GATTClient.async_char_read('0000a001-0000-1000-8000-00805f9b34fb')
         Logger.info("async_char_read: %s" % (r,))
 
     def cb_cr_done(self, result, dt):
@@ -194,11 +197,11 @@ class DEDebugApp(App):
         Logger.info("BLE: cb_connect_done: %s" % (result,))
 
     def on_pause(self):
-        self.BLE.on_pause()
+        # self.BLE.on_pause()
         return True
 
     def on_resume(self):
-        self.BLE.on_resume()
+        # self.BLE.on_resume()
         return True
 
     def on_stop(self):

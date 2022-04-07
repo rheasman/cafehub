@@ -19,7 +19,7 @@ class BLEScanTool(metaclass=abc.ABCMeta):
   """
 
   @abc.abstractmethod
-  def getSeenEntries(self) -> Dict[BLEScanResult]:
+  def getSeenEntries(self) -> Dict[str, BLEScanResult]:
     """
     Returns entries seen in this scan so far
     """
@@ -39,7 +39,7 @@ class BLEScanTool(metaclass=abc.ABCMeta):
     """
 
   @abc.abstractmethod
-  def getPreviousEntries(self) -> Dict[BLEScanResult]:
+  def getPreviousEntries(self) -> Dict[str, BLEScanResult]:
     """
     Returns every entry seen before the most recent scan.
 

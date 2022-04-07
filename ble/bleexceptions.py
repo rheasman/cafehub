@@ -34,3 +34,7 @@ class BLECouldntDiscoverServices(BLEException):
 class BLEConnectionError(BLEException):
     EID = 6
     pass
+
+class BLEMismatchedOperation(BLEException):
+    EID = 7
+    pass

@@ -1,5 +1,5 @@
 from kivy.logger import Logger
-from jnius import PythonJavaClass, autoclass, cast, java_method
+from jnius import PythonJavaClass, java_method  # type: ignore
 from ble.blescanresult import BLEScanResult
 
 class PyScanCallback(PythonJavaClass):
@@ -53,6 +53,14 @@ class PyScanCallback(PythonJavaClass):
     # 0000ffff-0000-1000-8000-00805f9b34fb
     self.Parent._addEntry(res)
 
-  def __init__(self, parent):
-    super(PyScanCallback, self).__init__()
+  def setParent(self, parent):
+    """
+    At some point pyjnius became unable to find classes if not run in the main thread.
+    This is a problem, because we want to run this in a background thread.
+    So, we init the class in the main thread, then set the parent elsewhere before
+    using the class.
+    """
     self.Parent = parent
+
+  def __init__(self,):
+    super(PyScanCallback, self).__init__() 

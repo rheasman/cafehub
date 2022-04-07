@@ -7,7 +7,27 @@ from ble.gattclientinterface import GATTCState
 
 sys.path.insert(0, os.path.abspath(os.path.join(__file__, '../..')))
 from ble.blescanresult import BLEScanResult
-from typing import Dict, List
+from typing import Dict, List, Literal, Any
+
+from pydantic import BaseModel
+
+T_MsgType_REQ = Literal["REQ"]
+T_MsgType_RESP = Literal["RESP"]
+T_MsgType_UPDATE = Literal["UPDATE"]
+T_MsgType = Literal[T_MsgType_REQ, T_MsgType_RESP, T_MsgType_UPDATE]
+T_ConnectionState = Literal["INIT", "DISCONNECTED", "CONNECTED", "CANCELLED"]
+T_ReqCommand = Literal["Scan", "GATTConnect", "GATTDisconnect", "GATTRead", "GATTSetNotify", "GATTWrite"];
+
+class T_Request(BaseModel):
+    type : T_MsgType_REQ = "REQ"
+    command: T_ReqCommand
+    params: Any
+    id: int
+
+    class Config:
+        allow_mutation = False
+
+
 
 """
 Requests follow the following general format:
@@ -199,7 +219,7 @@ class WSBLEParser:
 
         if obj['command'] == 'GATTWrite':
             # GATTWrite(MAC: string: Char: string, Data: Base64Data)
-            self.check_exists(['MAC', 'Char', 'Data'], params, 'No %s in GATTSetNotify request params')
+            self.check_exists(['MAC', 'Char', 'Data'], params, 'No %s in GATTWrite request params')
 
             self.parse_MAC(params['MAC'])
             self.parse_Char(params['Char'])
@@ -374,8 +394,8 @@ def test_resp():
 def test_req():
     parser = WSBLEParser()
 
-    parser.parse_req(make_GATTRead(1, TEST_MAC, TEST_UUID, 10))
-    parser.parse_req(make_GATTWrite(1, TEST_MAC, TEST_UUID, 10))
+    # parser.parse_req(make_GATTRead(1, TEST_MAC, TEST_UUID, 10))
+    # parser.parse_req(make_GATTWrite(1, TEST_MAC, TEST_UUID, 10))
 
 
 def test_update():

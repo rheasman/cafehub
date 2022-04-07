@@ -26,4 +26,4 @@ def get_WSAsyncLoop():
 
 
 def run_coroutine_threadsafe(coroutine):
-    return asyncio.run_coroutine_threadsafe(coroutine, _WSAsyncLoop)
+    return asyncio.run_coroutine_threadsafe(coroutine, _WSAsyncLoop)  # type: ignore
