@@ -110,7 +110,7 @@ Updates:
         Notification of a connection or disconnection. If id != 0, then this connection
         state is the direct result of a connect or disconnect request.
         
-    ExecutionError(Error : String)
+    ExecutionError(eid : number, errmsg : String)
     
         Used to report any runtime errors that occurred in the server
         
@@ -219,7 +219,7 @@ class WSBLEParser:
 
         if obj['command'] == 'GATTWrite':
             # GATTWrite(MAC: string: Char: string, Data: Base64Data)
-            self.check_exists(['MAC', 'Char', 'Data'], params, 'No %s in GATTWrite request params')
+            self.check_exists(['MAC', 'Char', 'Data', 'RR'], params, 'No %s in GATTWrite request params')
 
             self.parse_MAC(params['MAC'])
             self.parse_Char(params['Char'])
@@ -320,20 +320,22 @@ def make_ConnectionState(uid : int, mac : str, state : GATTCState, uuids : List[
     })
 
 
-def make_GATTWrite(rid : int, mac : str, char : str, data : bytes) -> Dict:
+def make_GATTWrite(rid : int, mac : str, char : str, data : bytes, requireresponse : bool) -> Dict:
     params = {
         'MAC'  : mac,
         'Char' : char,
         'Data' : data,
+        'RR'   : requireresponse
     }
     return make_req("GATTWrite", rid, params)
 
 
-def make_GATTWrite_as_JSON(rid : int, mac : str, char : str, data : bytes) -> str:
+def make_GATTWrite_as_JSON(rid : int, mac : str, char : str, data : bytes, requireresponse : bool) -> str:
     params = {
         'MAC'  : mac,
         'Char' : char,
         'Data' : base64.standard_b64encode(data).decode('ascii'),
+        'RR'   : requireresponse
     }
     return json.dumps(make_req("GATTWrite", rid, params))
 
@@ -375,11 +377,9 @@ def make_update_from_blescanresult(uid : int, scanresult : BLEScanResult) -> Dic
     return make_update(uid, 'ScanResult', results)
 
 
-def make_execution_error(uid, error : str) -> Dict:
+def make_execution_error(uid, eid, error : str) -> Dict:
     # ExecutionError(Error)
-    results = {
-        'Error' : error
-    }
+    results = make_error(eid, error)
     return make_update(uid, 'ExecutionError', results)
 
 

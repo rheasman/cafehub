@@ -10,9 +10,10 @@ from kivy.logger import Logger
 from ble.bleexceptions import BLEAlreadyScanning
 from ble.blescanresult import BLEScanResult
 from ble.bgasyncthread import run_coroutine_threadsafe
+from ble.blescantoolinterface import I_BLEScanTool
 
 
-class BLEScanTool:
+class BLEScanTool(I_BLEScanTool):
     """
     Wraps everything to do with scanning, using bleak
 

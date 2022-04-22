@@ -1,16 +1,17 @@
 #!/usr/bin/python3
-import functools
 import threading
 import traceback
-from typing import Dict
+from typing import Any, Dict, Union
 
 from kivy.logger import Logger
+from ble.android.androidtypes import T_Context, T_Intent
 
 from ble.bleak.blescanner import BLEScanTool
 from ble.bleak.gattclient import GATTClient
 from ble.bleexceptions import BLEException
 from ble.bleinterface import BLEInterface
 from ble.bleops import ContextConverter, QOpExecutorFactory
+from ble.blescantoolinterface import I_BLEScanTool
 from ble.gattclientinterface import GATTClientInterface
 
 
@@ -19,19 +20,19 @@ class BLE(BLEInterface):
     This is the BLEAK specific BLE module.
     """
 
-    def __init__(self, executorfactory: QOpExecutorFactory, contextconverter: ContextConverter):
+    def __init__(self, executorfactory: QOpExecutorFactory, contextconverter: ContextConverter, androidcontext : Any = None):
         Logger.info("UI: BLE.__init__()")
 
         print("BLE(__init__) current thread", threading.current_thread().name)
 
         self.QOpExecutorFactory = executorfactory
         self.ContextConverter = contextconverter
-        self.BLEScanTool = None
+        self.BLEScanTool : Union[I_BLEScanTool, None] = None
 
         self.ConnectLock = threading.RLock()
         self.GATTClients : Dict[str, GATTClientInterface] = {}
 
-    def setScanTool(self, tool):
+    def setScanTool(self, tool : I_BLEScanTool):
         """
         If getScanTool() hasn't yet been called, this method can be used to provide your
         own scan tool.
@@ -56,11 +57,11 @@ class BLE(BLEInterface):
         Logger.debug("BLE on_stop()")
         self.disconnectAllClients()
 
-    def isBLESupported(self):
+    def isBLESupported(self) -> bool:
         """Returns True if BLE is supported"""
         return True
 
-    def isEnabled(self):
+    def isEnabled(self) -> bool:
         """Returns True if BLE is supported and enabled"""
         if not self.isBLESupported():
             return False
@@ -81,25 +82,25 @@ class BLE(BLEInterface):
 
         return True
 
-    def getBLEScanTool(self):
+    def getBLEScanTool(self) -> Union[I_BLEScanTool, None]:
         """
         If BLE is enabled, returns a BLEScanTool object, else returns None
         """
         # self.BClassicAdapter.startDiscovery()  # Use to scan for Classic devices
         if self.isEnabled():
             if self.BLEScanTool is None:
-                self.BLEScanTool = BLEScanTool()
+                self.BLEScanTool : Union[I_BLEScanTool, None] = BLEScanTool()
             return self.BLEScanTool
         else:
             return None
 
-    def scanForDevices(self, duration):
+    def scanForDevices(self, duration : float):
         Logger.debug("BLE: scanForDevices()")
         t = self.getBLEScanTool()
         if t is not None:
             t.startScan(duration)
 
-    def _tobytes(self, macaddress):
+    def _tobytes(self,  macaddress : str):
         return [int(x, 16) for x in macaddress.split(":")]
 
     def disconnectAllClients(self):
@@ -114,9 +115,9 @@ class BLE(BLEInterface):
             # stack would be unhappy too
             for client in self.GATTClients.values():
                 try:
-                    if client.is_connected:
+                    if client.is_connected():
                         client.disconnect()
-                except BLEException as e:
+                except BLEException:
                     Logger.debug("BLE: disconnectAllClients() caught exception: %s" % (traceback.format_exc(),))
 
 
@@ -142,7 +143,7 @@ class BLE(BLEInterface):
         self.GATTClients[macaddress] = gc
         return gc
 
-    def on_broadcast(self, context, intent):
+    def on_broadcast(self, context : T_Context, intent : T_Intent):
         """
         Set up by __init__ to receive broadcasts (to a BroadcastReceiver, self.BR)
         """

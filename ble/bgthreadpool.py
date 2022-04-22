@@ -1,18 +1,17 @@
-import concurrent.futures
 import queue
-
 import threading
 
 
 # This is a singleton thread pool to allow us to single thread operations in a background thread.
 import traceback
+from typing import Any, Callable, Tuple
 
 from kivy.logger import Logger
 
 
 class SingleThreader:
     def __init__(self):
-        self.SubmitQ = queue.Queue()
+        self.SubmitQ : queue.Queue[Tuple[Callable[..., Any], Any, Any]] = queue.Queue()
         self.SingleThread = threading.Thread(name='SingleThread', daemon=True, target=self._bgloop)
         self.Running = True
         self.SingleThread.start()
@@ -21,7 +20,7 @@ class SingleThreader:
         self.Running = False
         self.SingleThread.join()
 
-    def submit(self, fn, /, *args, **kwargs):
+    def submit(self, fn : Callable[..., Any], /, *args : Any, **kwargs : Any):
         self.SubmitQ.put((fn, args, kwargs))
 
     def _bgloop(self):
@@ -29,7 +28,7 @@ class SingleThreader:
             try:
                 (fn, args, kwargs) = self.SubmitQ.get()
                 fn(*args, **kwargs)
-            except Exception as exc:
+            except Exception:
                 Logger.debug("BLE: EXCEPTION: %s" % (traceback.format_exc(),))
 
 
@@ -40,7 +39,7 @@ def shutdown():
     __ST.shutdown()
 
 
-def submit(fn, /, *args, **kwargs):
+def submit(fn : Callable[..., Any], /, *args : Any, **kwargs : Any):
     """
     Submit a function to our single background thread.
 

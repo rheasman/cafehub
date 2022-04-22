@@ -5,7 +5,7 @@ import traceback
 from time import sleep
 
 from ble.ble import BLE
-from ble.bleexceptions import BLEException
+from ble.bleexceptions import BLEException, UnknownException
 from ble.bleops import ContextConverter, QOpExecutorFactory, synchronized_with_lock
 from ble.uuidtype import CHAR_UUID
 from wsserver.jsondesc import *
@@ -57,12 +57,12 @@ def catch_exceptions_and_send_as_JSON(oldmethod):
         try:
             oldmethod(self, client, uid, *args)
         except BLEException as pe:
-            result = make_execution_error(uid, getattr(pe, 'message', repr(pe)))
+            result = make_execution_error(uid, pe.EID, getattr(pe, 'message', repr(pe)))
             self.sendJSON(client, result)
         except:
             tb = traceback.format_exc()
             print(tb)
-            result = make_execution_error(uid, repr(tb))
+            result = make_execution_error(uid, UnknownException.EID, repr(tb))
             self.sendJSON(client, result)
 
     return wrapper  # Wrapper replaces oldmethod
@@ -75,10 +75,10 @@ class SyncWSServer:
     Async server was not playing well with Kivy. There are timeouts and things I
     can't interrupt.
     """
-    def __init__(self, logger):
+    def __init__(self, logger, androidcontext = None):
         self.Logger = logger
         self.SeenDevices = set()
-        self.BLE = BLE(QOpExecutorFactory(), NoOpConverter())
+        self.BLE = BLE(QOpExecutorFactory(), NoOpConverter(), androidcontext = androidcontext)
         self.BLE.requestBLEEnableIfRequired()
         self.Parser = WSBLEParser()
         self.run()
@@ -155,7 +155,7 @@ class SyncWSServer:
 
     @catch_exceptions_and_send_as_JSON
     def do_set_notify(self, client, uid : int, mac : str, uuid : CHAR_UUID, enable : bool):
-        def sendcallback(characteristic : CHAR_UUID, data):
+        def sendcallback(characteristic : CHAR_UUID, data : bytes):
             results = {
                 "MAC"  : mac,
                 "Char" : characteristic.AsString,
@@ -191,13 +191,13 @@ class SyncWSServer:
         self.sendJSON(client, resp)
 
     @catch_exceptions_and_send_as_JSON
-    def do_write(self, client, uid : int, mac : str, char : CHAR_UUID, wdata : bytes):
+    def do_write(self, client, uid : int, mac : str, char : CHAR_UUID, wdata : bytes, requireresponse : bool):
         """
         Write 'wdata' to 'mac' characteristic 'char'.
         """
         gc = self.BLE.getGATTClient(mac)
         decodedata = base64.b64decode(wdata)
-        res = gc.char_write(char, decodedata)
+        res = gc.char_write(char, decodedata, requireresponse)
         resp = make_resp(uid, {'eid' : 0, 'errmsg' : ''}, {})
         self.sendJSON(client, resp)
 
@@ -224,6 +224,7 @@ class SyncWSServer:
         if client is None:
             return
 
+        self.Server.deny_new_connections()
         self.remConn(client['id'])
 
         connset = self.getConnSet()
@@ -257,14 +258,14 @@ class SyncWSServer:
             cmd = json.loads(message)
             self.parseCommand(client, cmd)
         except json.decoder.JSONDecodeError as de:
-            result = make_execution_error(0, repr(de))
+            result = make_execution_error(0, UnknownException.EID, repr(de))
         except ParseException as pe:
             uid = cmd.get('uid', 0)
-            result = make_execution_error(uid, getattr(pe, 'message', repr(pe)))
+            result = make_execution_error(uid, UnknownException.EID, getattr(pe, 'message', repr(pe)))
         except:
             uid = cmd.get('uid', 0)
             tb = traceback.format_exc()
-            result = make_execution_error(uid, repr(tb))
+            result = make_execution_error(uid, UnknownException.EID, repr(tb))
 
         if result is not None:
             self.sendJSON(client, result)
@@ -275,7 +276,7 @@ class SyncWSServer:
         self.Parser.parse_obj(cmd)
         if cmd['type'] == 'REQ':
             if cmd['command'] == 'GATTWrite':
-                self.do_write(client, uid, params['MAC'], CHAR_UUID(params['Char']), params['Data'])
+                self.do_write(client, uid, params['MAC'], CHAR_UUID(params['Char']), params['Data'], params['RR'])
 
             if cmd['command'] == 'GATTRead':
                 self.do_read(client, uid, params['MAC'], CHAR_UUID(params['Char']), params['Len'])
@@ -310,7 +311,8 @@ class SyncWSServer:
             
         self.Logger.debug("WSServer: >>> %s" % (result,))
         if (ob['type'] == "UPDATE") and (ob['update'] == "ExecutionError"):
-            err = ob['results']['Error']
+            self.Logger.debug("WSServer: Error: %s" % (ob,))
+            err = ob['results']['errmsg']
             self.Logger.debug("WSServer: sendJSON: %s" % (err.encode('latin-1', 'backslashreplace').decode('unicode-escape'),))
 
     def run(self):

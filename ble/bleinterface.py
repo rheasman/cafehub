@@ -1,7 +1,9 @@
 #!/usr/bin/python3
 import abc
+from typing import Any, Union
 
 from ble.bleops import ContextConverter, QOpExecutorFactory
+from ble.blescantoolinterface import I_BLEScanTool
 
 
 class BLEInterface(metaclass=abc.ABCMeta):
@@ -11,7 +13,7 @@ class BLEInterface(metaclass=abc.ABCMeta):
     """
 
     @abc.abstractmethod
-    def __init__(self, macaddress: str, qopexecutorfac: QOpExecutorFactory, contextconverter: ContextConverter):
+    def __init__(self, macaddress: str, qopexecutorfac: QOpExecutorFactory, contextconverter: ContextConverter, androidcontext : Any = None):
         """
         NB on Android: ONLY CALL __init__() AFTER on_create()
 
@@ -26,7 +28,7 @@ class BLEInterface(metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
-    def setScanTool(self, tool):
+    def setScanTool(self, tool : I_BLEScanTool):
         """
 
         If getScanTool() hasn't yet been called, this method can be used
@@ -56,15 +58,15 @@ class BLEInterface(metaclass=abc.ABCMeta):
         """
         
     @abc.abstractmethod
-    def isBLESupported(self):
+    def isBLESupported(self) -> bool :
         """Returns True if BLE is supported"""
 
     @abc.abstractmethod
-    def isEnabled(self):
+    def isEnabled(self) -> bool:
         """Returns True if BLE is supported and enabled"""
 
     @abc.abstractmethod
-    def requestBLEEnableIfRequired(self):
+    def requestBLEEnableIfRequired(self) -> bool:
         """
         Asks the user to enable BLE if required.
         Right now, has no way to tell if the user succeeded.
@@ -76,13 +78,13 @@ class BLEInterface(metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
-    def getBLEScanTool(self):
+    def getBLEScanTool(self) -> Union[I_BLEScanTool, None]:
         """
         If BLE is enabled, returns a BLEScanTool object, else returns None
         """
 
     @abc.abstractmethod
-    def scanForDevices(self, duration):
+    def scanForDevices(self, duration : float):
         """
         Uses the default scan tool to scan for devices for "duration" seconds.
         """

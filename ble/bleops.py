@@ -1,5 +1,4 @@
 import abc
-from ast import Call
 import asyncio
 import collections
 import functools
@@ -7,8 +6,7 @@ import inspect
 import queue
 import threading
 import traceback
-from typing import Any, Callable, Deque, Generic, TypeVar, Union, final
-from typing_extensions import ParamSpec, Concatenate
+from typing import Any, Awaitable, Callable, Coroutine, Deque, Generic, TypeVar, Union
 
 from kivy.logger import Logger
 
@@ -39,15 +37,16 @@ class OpResult(Generic[T]):
         self.Result = r
 
 
-class QOp:
-    def __init__(self, op : Callable, *args, **kwargs):
+QOpMethod = Union[Callable[..., T], Coroutine[Any, Any, T]];
+class QOp(Generic[T]):
+    def __init__(self, op : QOpMethod[T], *args : Any, **kwargs : Any):
         """
         Represents an operation.
 
         When do() is called, Op will be called with manager, args and kwargs.
         If callback is set, then results will be passed to the callback
         """
-        self.Op = op
+        self.Op : QOpMethod[T] = op
         self.Args = args
         self.KwArgs = kwargs
         try:
@@ -57,15 +56,15 @@ class QOp:
             self.Callback = None
 
     def do(self, manager : 'QOpManager'):
-        opr = OpResult()
+        opr : OpResult[T] = OpResult()
         try:
             Logger.debug("BLE: do() %s" % (repr(self.Op)))
-            res = self.Op(*self.Args, **self.KwArgs, manager=manager)
+            res : T = self.Op(*self.Args, **self.KwArgs, manager=manager)
             if inspect.isawaitable(res):
                 # We might have been passed an async function or method, which means
                 # it hasn't actually been run yet. If so we need to run it in the
                 # background thread and get the result
-                res = run_coroutine_threadsafe(res).result()
+                res : T = run_coroutine_threadsafe(res).result()  # type: ignore
             opr.setResult(res)
         except Exception as e:
             Logger.debug("EXCEPTION: do(): %s" % (traceback.format_exc(),))
@@ -81,15 +80,15 @@ class QOp:
 
     def cancel(self, manager : 'QOpManager', reason : str):
         Logger.debug("BLE: cancel() %s %s" % (manager, reason))
-        opr = OpResult()
+        opr : OpResult[T] = OpResult()
 
         try:
-            res = self.Op(*self.Args, **self.KwArgs, manager=manager, reason=reason)
+            res : T = self.Op(*self.Args, **self.KwArgs, manager=manager, reason=reason)
             if inspect.isawaitable(res):
                 # We might have been passed an async function or method, which means
                 # it hasn't actually been run yet. If so we need to run it in the
                 # background thread and get the result
-                res = run_coroutine_threadsafe(res).result()
+                res : T = run_coroutine_threadsafe(res).result()  # type: ignore
             opr.setResult(res)
         except Exception as e:
             Logger.debug("EXCEPTION: cancel(): %s" % (traceback.format_exc(),))
@@ -106,21 +105,20 @@ class CountingSemaphore(threading.Semaphore):
     Just makes things a little easier to read.
     """
 
-    def up(self, *args, **kwargs):
+    def up(self, *args : Any, **kwargs : Any):
         return self.release(*args, **kwargs)
 
-    def down(self, *args, **kwargs):
+    def down(self, *args : Any, **kwargs : Any):
         return self.acquire(*args, **kwargs)
 
-
-def synchronized_with_lock(lock_name):
+def synchronized_with_lock(lock_name : str) -> Callable[ [Callable[..., T]], Callable[..., T] ]:
     """
     Make a locking decorator that will mean that only one method/function
     associated with a lock can be active at a time
     """
 
-    def decorator(method):
-        def synced_method(self, *args, **kwargs):
+    def decorator(method : Callable[..., T]) -> Callable[..., T]:
+        def synced_method(self : Any, *args : Any, **kwargs : Any) -> T:
             Logger.debug("BLE: Entering %s" % (method.__name__,))
             lock = getattr(self, lock_name)
             with lock:
@@ -162,7 +160,7 @@ class QOpManager:
         Probably not what you want (unless, you know, it is).
         """
         Logger.debug("BLE: _dumpQ")
-        self.Q : Deque[QOp] = collections.deque()
+        self.Q : Deque[QOp[Any]] = collections.deque()
 
     @synchronized_with_lock("QLock")
     def cancelQ(self, reason : str):
@@ -184,7 +182,7 @@ class QOpManager:
             self.OpCount.down()
 
     @synchronized_with_lock("QLock")
-    def addFIFOOp(self, op: QOp):
+    def addFIFOOp(self, op: QOp[Any]):
         """
         Add an item to the back of the queue
         """
@@ -194,7 +192,7 @@ class QOpManager:
         Logger.debug("BLE: End of addFIFIOp")
 
     @synchronized_with_lock("QLock")
-    def addLIFOOp(self, op: QOp):
+    def addLIFOOp(self, op: QOp[Any]):
         """
         Add an item that will be the next thing to be executed
         """
@@ -209,7 +207,7 @@ class QOpManager:
         Logger.debug("BLE: signalOpIsDone()")
         self.OpDone.set()  # Operation is now "done"
 
-    def waitUntilReady(self, timeout=None):
+    def waitUntilReady(self, timeout : Union[float, None] = None):
         self.OpDone.wait(timeout=timeout)
 
     def doNextOp(self):
@@ -258,7 +256,7 @@ class QOpExecutor:
                 # Submit to our background single thread
                 self.Manager.waitUntilReady()
                 ble.bgthreadpool.submit(self.Manager.doNextOp)
-            except Exception as exc:
+            except Exception:
                 Logger.debug("BLE: EXCEPTION: %s" % (traceback.format_exc(),))
         Logger.debug("QOpExecutor: Exited _bgLoop")
 
@@ -291,14 +289,14 @@ class ContextConverter(metaclass=abc.ABCMeta):
     """
 
     @abc.abstractmethod
-    def convert(self, callback, *args, **kwargs) -> Callable:
+    def convert(self, callback : Union[Callable[..., T], None], *args : Any, **kwargs : Any) -> Callable[..., T]:
         """
         Return a callback that calls the given callback in the correct context.
         """
         pass
 
 
-def exceptionCatcherForAsyncDecorator(functowrap):
+def exceptionCatcherForAsyncDecorator(functowrap: Callable[..., Awaitable[Any]]):
     """
 
     This started off as a decorator I found online that makes it easier
@@ -313,47 +311,46 @@ def exceptionCatcherForAsyncDecorator(functowrap):
       https://hackernoon.com/python-async-decorator-to-reduce-debug-woes-nv2dg30q5
     """
 
-    async def deco(*args):
+    async def deco(*args: Any):
         try:
             return await functowrap(*args)
-        except Exception as E:
+        except Exception:
             Logger.debug("EXCEPTION: %s" % (traceback.format_exc(),))
             raise  # re-raise exception to allow process in calling function
 
     return deco
 
 
-def thread_with_callback(convertername):
-    """
-    Make a decorator that converts a synchronous method into one
-    that puts work onto an operation queue and then calls a callback.
+# def thread_with_callback(convertername):
+#     """
+#     Make a decorator that converts a synchronous method into one
+#     that puts work onto an operation queue and then calls a callback.
 
-    The method must be called with a "callback=foo"
-    keyword, although that isn't in the method signature.
+#     The method must be called with a "callback=foo"
+#     keyword, although that isn't in the method signature.
 
-    Expects the class holding the method to have
-    ContextConverter named by convertername.
-    """
+#     Expects the class holding the method to have
+#     ContextConverter named by convertername.
+#     """
 
-    def decorator(method):
+#     def decorator(method):
 
-        @functools.wraps(method)  # Clones info from wrapped function to improve info in debuggers and traces.
-        def method_wrapper(self, *args, **kwargs):
-            try:
-                callback = kwargs["callback"]
-                del kwargs["callback"]
-            except KeyError:
-                print(
-                    "This decorator wraps a function to call a callback once completed. Please provide a callback keyword argument")
-                raise
+#         @functools.wraps(method)  # Clones info from wrapped function to improve info in debuggers and traces.
+#         def method_wrapper(self, *args, **kwargs):
+#             try:
+#                 callback = kwargs["callback"]
+#                 del kwargs["callback"]
+#             except KeyError:
+#                 print(
+#                     "This decorator wraps a function to call a callback once completed. Please provide a callback keyword argument")
+#                 raise
 
-            converter = getattr(self, convertername)
-            convertedcallback = converter.convert(callback)
-            op = QOp(method, *args, **kwargs, callback=convertedcallback)
-            self.QOpManager.addFIFOOp(op)
+#             converter = getattr(self, convertername)
+#             convertedcallback = converter.convert(callback)
+#             op = QOp(method, *args, **kwargs, callback=convertedcallback)
+#             self.QOpManager.addFIFOOp(op)
 
-SELF = TypeVar('SELF')
-def wrap_into_QOp(actualmethod : Callable[..., T]) -> Callable[[Callable[..., None]], Callable[..., T]]:
+def wrap_into_QOp(actualmethod : Callable[..., T]) -> Callable[[Callable[..., Any]], Callable[..., T]]:
     """
     Wraps an existing method into a method
     that runs on a background QOp queue
@@ -361,18 +358,18 @@ def wrap_into_QOp(actualmethod : Callable[..., T]) -> Callable[[Callable[..., No
 
     # def decorator(newmethod : Callable[P, None]) -> Callable[P, T]:
 
-    def decorator(newmethod : Callable[..., None]) -> Callable[..., T]:
+    def decorator(newmethod : Callable[..., Any]) -> Callable[..., T]:
         # print("wiQ: decorator: ", actualmethod, newmethod)
 
         @functools.wraps(newmethod)  # newmethod is the decorated method
-        def newmethodwrapper(self, *args, **kwargs) -> T:
+        def newmethodwrapper(self : Any, *args : Any, **kwargs: Any) -> T:
 
             newmethod(self, *args, **kwargs)
             res : queue.SimpleQueue[OpResult[T]] = queue.SimpleQueue()
 
             # print("Wrapped", newmethod.__name__)
 
-            def cb_wrapper(opr: OpResult):
+            def cb_wrapper(opr: OpResult[T]):
                 res.put(opr, block=False)
 
             op = QOp(actualmethod, self, *args, callback=cb_wrapper)
@@ -380,7 +377,7 @@ def wrap_into_QOp(actualmethod : Callable[..., T]) -> Callable[[Callable[..., No
 
             try:
                 r = res.get(block=True, timeout=self.QOpTimeout)
-            except Empty as e:
+            except Empty:
                 raise BLEOperationTimedOut(
                     "Issued %s returned no results in %s seconds" % (actualmethod.__name__, self.QOpTimeout)
                 )

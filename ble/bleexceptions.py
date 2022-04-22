@@ -1,40 +1,30 @@
-class BLEException(Exception):
-    pass
+# Note that 1000 will be used for exceptions with no known type
+class UnknownException(Exception):
+    EID = 1000
 
+class BLEException(Exception):
+    EID = 20000
 
 class BLEOpException(BLEException):
-    pass
-
+    EID = 500
 
 class BLEOperationNotIssued(BLEOpException):
     EID = 1
-    pass
-
 
 class BLEOperationTimedOut(BLEOpException):
     EID = 2
-    pass
-
 
 class BLEScanException(BLEException):
     EID = 3
-    pass
-
 
 class BLEAlreadyScanning(BLEScanException):
     EID = 4
-    pass
-
 
 class BLECouldntDiscoverServices(BLEException):
     EID = 5
-    pass
-
 
 class BLEConnectionError(BLEException):
     EID = 6
-    pass
 
 class BLEMismatchedOperation(BLEException):
     EID = 7
-    pass

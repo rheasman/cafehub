@@ -1,22 +1,25 @@
 #!/usr/bin/python3
 import threading
-from typing import Dict
+from typing import Any, Dict, Union
 
 from kivy.logger import Logger
-from jnius import PythonJavaClass, autoclass
+from jnius import autoclass
+
 # from android.broadcast import BroadcastReceiver
 
 from ble.android.blescanner import BLEScanTool
 from ble.android.gattclient import GATTClient
-from ble.bleops import QOpExecutorFactory, QOp, ContextConverter, QOpExecutor
+from ble.bleops import QOpExecutorFactory, ContextConverter
 from ble.bleinterface import BLEInterface
+from ble.blescantoolinterface import I_BLEScanTool
 from ble.gattclientinterface import GATTClientInterface
+from androidtypes import *
 
-PythonActivity = autoclass('org.kivy.android.PythonActivity')
-Intent = autoclass('android.content.Intent')
-BluetoothDevice = autoclass('android.bluetooth.BluetoothDevice')
-String = autoclass('java.lang.String')
-InvHandler = autoclass("org.jnius.NativeInvocationHandler")
+PythonActivity : T_PythonActivity = autoclass('org.kivy.android.PythonActivity')
+Intent : T_Intent = autoclass('android.content.Intent')
+BluetoothDevice : T_BluetoothDevice = autoclass('android.bluetooth.BluetoothDevice')
+String : T_Java_String = autoclass('java.lang.String')
+InvHandler : T_Native_Invocation_Handler = autoclass("org.jnius.NativeInvocationHandler")
 
 class BLE(BLEInterface):
     """
@@ -28,14 +31,15 @@ class BLE(BLEInterface):
     which is only initialized after the app exits onCreate().
     """
 
-    def __init__(self, executorfactory: QOpExecutorFactory, contextconverter: ContextConverter):
+    def __init__(self, executorfactory: QOpExecutorFactory, contextconverter: ContextConverter, androidcontext : Any = None):
         Logger.info("BLE.__init__()")
 
+        self.AndroidContext = androidcontext
         self.QOpExecutorFactory = executorfactory
         self.ContextConverter = contextconverter
         self.BLEScanTool = None
-        self.BLEAdapterClass = autoclass('android.bluetooth.BluetoothAdapter')
-        self.BClassicAdapter = self.BLEAdapterClass.getDefaultAdapter();
+        self.BLEAdapterClass : T_BluetoothAdapter = autoclass('android.bluetooth.BluetoothAdapter')
+        self.BClassicAdapter : T_BluetoothClassicAdapter = self.BLEAdapterClass.getDefaultAdapter()
         self.BClassicAdapter.cancelDiscovery()
 
         self.GATTClients : Dict[str, GATTClientInterface] = {}
@@ -47,7 +51,7 @@ class BLE(BLEInterface):
         # Logger.info("Starting ACTION_FOUND BroadcastReceiver")
         # self.BR.start()
 
-    def setScanTool(self, tool):
+    def setScanTool(self, tool : I_BLEScanTool):
         """
         If getScanTool() hasn't yet been called, this method can be used to provide your
         own scan tool.
@@ -76,14 +80,14 @@ class BLE(BLEInterface):
         """Returns True if BLE is supported"""
         return self.BClassicAdapter is not None
 
-    def isEnabled(self):
+    def isEnabled(self) -> bool:
         """Returns True if BLE is supported and enabled"""
         if not self.isBLESupported():
             return False
 
         return self.BClassicAdapter.isEnabled()
 
-    def requestBLEEnableIfRequired(self):
+    def requestBLEEnableIfRequired(self) -> bool:
         """
         Asks the user to enable BLE if required.
         Right now, has no way to tell if the user succeeded.
@@ -97,14 +101,14 @@ class BLE(BLEInterface):
         if self.isBLESupported():
             if not self.isEnabled():
                 # Uri = autoclass('android.net.Uri')
-                enableBtIntent = Intent()
+                enableBtIntent : T_Intent = Intent()
                 enableBtIntent.setAction(self.BLEAdapterClass.ACTION_REQUEST_ENABLE)
                 PythonActivity.mActivity.startActivityForResult(enableBtIntent, 0x1)
                 return True
 
         return False
 
-    def getBLEScanTool(self):
+    def getBLEScanTool(self) -> Union[I_BLEScanTool, None]:
         """
         If BLE is enabled, returns a BLEScanTool object, else returns None
         """
@@ -116,13 +120,13 @@ class BLE(BLEInterface):
         else:
             return None
 
-    def scanForDevices(self, duration):
+    def scanForDevices(self, duration : float):
         Logger.debug("scanForDevices()")
         t = self.getBLEScanTool()
         if t is not None:
             t.startScan(duration)
 
-    def _tobytes(self, macaddress):
+    def _tobytes(self, macaddress : str):
         return [int(x, 16) for x in macaddress.split(":")]
 
     def getGATTClient(self, macaddress: str) -> GATTClientInterface:
@@ -147,7 +151,7 @@ class BLE(BLEInterface):
         self.GATTClients[macaddress] = gc
         return gc
 
-    def on_broadcast(self, context, intent):
+    def on_broadcast(self, context : T_Context, intent : T_Intent):
         """
         Set up by __init__ to receive broadcasts (to a BroadcastReceiver, self.BR)
         """
@@ -164,7 +168,7 @@ class BLE(BLEInterface):
             # for future connects, and we know the Android
             # stack would be unhappy too
             for client in self.GATTClients.values():
-                if client.is_connected:
+                if client.is_connected():
                     try:
                         client.disconnect()
                     except:

@@ -1,24 +1,32 @@
-from typing import List
 from jnius import autoclass
-import asyncio
-import json
 import logging
 import os
-import threading
-import wsserver.server
+
+from kivy.config import Config
+
+Config.set('graphics', 'maxfps', '10')
 
 import kivy
 
-kivy.require('2.0.0')
+from kivy.app import App
+from kivy.lang import Builder
+from kivy.clock import Clock
+from kivy.utils import platform
+
+from jnius import autoclass
+
+from oscpy.client import OSCClient
+from oscpy.server import OSCThreadServer
+
+
+# kivy.require('2.0.0')
 
 from kivy.logger import Logger, LOG_LEVELS
 
 # Uncomment this to allow all non-Kivy loggers to output
 logging.Logger.manager.root = Logger  # type: ignore
 
-from ble.ble import BLE
-
-print(os.path.dirname(kivy.__file__))
+Logger.debug("SYS:" + os.path.dirname(kivy.__file__))
 
 from kivy.config import Config
 
@@ -40,208 +48,153 @@ Config.set('kivy', 'log_name', 'lastlog.txt')
 from kivy.app import App
 from kivy.lang.builder import Builder
 from kivy.clock import Clock
-from ble.bleops import QOpExecutorFactory, exceptionCatcherForAsyncDecorator
 
-import traceback
-import functools
-
-
-class KivyUICBConverter:
-    """
-    Converts a callback function to run in the Kivy execution loop. Will
-    only run when the next frame is scheduled, so don't use this if
-    speed is important.
-    """
-
-    def convert(self, fn):
-        def wrapper(result):
-            Clock.schedule_once(functools.partial(fn, result))
-
-        return wrapper
+# coding: utf8
+__version__ = '0.2'
 
 
-class DEDebugApp(App):
-    def __init__(self, evloop, stopfuture):
-        self.Loop = evloop
-        self.StopFuture = stopfuture
-        super().__init__()
+SERVICE_NAME = u'{packagename}.Service{servicename}'.format(
+    packagename=u'org.decentespresso.dedebug',
+    servicename=u'Bleservice'
+)
 
-    async def nice_async_run(self):
-        try:
-            return await self.async_run(async_lib='asyncio')
-        except Exception as E:
-            Logger.debug("EXCEPTION: %s" % (traceback.format_exc(),))
-            raise  # re-raise exception to allow process in calling function
+Context = autoclass('android.content.Context')
+Intent = autoclass('android.content.Intent')
+PendingIntent = autoclass('android.app.PendingIntent')
+AndroidString = autoclass('java.lang.String')
+NotificationBuilder = autoclass('android.app.Notification$Builder')
+Action = autoclass('android.app.Notification$Action')
+PythonService = autoclass('org.kivy.android.PythonService')
+PythonActivity = autoclass('org.kivy.android.PythonActivity')
+BluetoothDevice = autoclass('android.bluetooth.BluetoothDevice')
+String = autoclass('java.lang.String')
+InvHandler = autoclass("org.jnius.NativeInvocationHandler")
+PowerManager = autoclass('android.os.PowerManager')
+BuildVersion = autoclass("android.os.Build$VERSION")
+Settings = autoclass('android.provider.Settings')
+Uri = autoclass('android.net.Uri')
 
-    def on_activity_result(self, requestCode, resultCode, data):
-        Logger.info("### ACTIVITY CALLBACK ###", requestCode, resultCode, data)
+KV = '''
+BoxLayout:
+    orientation: 'vertical'
+    BoxLayout:
+        size_hint_y: None
+        height: '120sp'
+        Button:
+            text: 'start service'
+            on_press: app.start_service()
+        Button:
+            text: 'stop service'
+            on_press: app.stop_service()
 
-    def on_new_intent(self, intent) -> None:
-        Logger.info("#### INTENT", intent)
+    ScrollView:
+        Label:
+            id: label
+            size_hint_y: None
+            height: self.texture_size[1]
+            text_size: self.size[0], None
 
+    BoxLayout:
+        size_hint_y: None
+        height: '120sp'
+        Button:
+            text: 'ping'
+            on_press: app.send()
+        Button:
+            text: 'clear'
+            on_press: label.text = ''
+        Label:
+            id: date
+
+'''
+
+class ClientServerApp(App):
     def build(self):
-        Logger.info("UI: build()")
-        root = Builder.load_file('./dedebugroot.kv')
-        self.BLEScanWidget = root.ids.scanwidget
+        self.service = None
 
-        # # ListView:
-        # # id: logger
-        # # adapter:
-        # #     sla.SimpleListAdapter(data=[], cls=label.Label)
+        self.server = server = OSCThreadServer()
+        server.listen(
+            address='localhost',
+            port=3002,
+            default=True,
+        )
 
-        return root
+        server.bind(b'/message', self.display_message)
+        server.bind(b'/date', self.date)
 
+        self.client = OSCClient(b'localhost', 3000)
+        self.root = Builder.load_string(KV)
+        return self.root
+    
     def on_start(self):
-        Logger.info("UI: on_start()")
-        self.DE1GATTClient = None
-        # self.BLE = BLE(QOpExecutorFactory(), KivyUICBConverter())
-        # self.BLE.requestBLEEnableIfRequired()
-        # self.BLE.scanForDevices(4)
-        # self.ShownDevices = set()
-        # self.ScanEvent = Clock.schedule_interval(self.ble_scan_check, 0.5)
+        Logger.debug("Main: SDK_INT: %s" % (BuildVersion.SDK_INT,))
+        
+        mActivity = autoclass(u'org.kivy.android.PythonActivity').mActivity
+        pm = mActivity.getSystemService(Context.POWER_SERVICE)
+        wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, 'TAG')
 
-    def match_DE1_uuid(self, uuid) -> bool:
-        if uuid is None:
-            return False
+        wl.acquire()
 
-        tomatch = '0000ffff-0000-1000-8000-00805f9b34fb'.split('-')[1:]
-        matched = (tomatch == uuid.split('-')[1:])
+        if BuildVersion.SDK_INT >= 23: # Build.VERSION_CODES.M) {
+            intent = Intent()
+            packageName = u"org.decentespresso.dedebug"
+            if not pm.isIgnoringBatteryOptimizations(packageName):
+                intent.setAction(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                intent.setData(Uri.parse("package:" + packageName))
+                mActivity.startActivity(intent)
+        self.start_service()
 
-        if matched:
-            Logger.debug("UI: %s matched" % (uuid,))
+    def start_service(self):
+        if platform == 'android':
+
+            service = autoclass(SERVICE_NAME)
+            self.mActivity = autoclass(u'org.kivy.android.PythonActivity').mActivity
+            argument = ''
+
+            if BuildVersion.SDK_INT > 26: # VERSION_CODES.O
+                service.startForegroundService(self.mActivity, argument)
+            else:
+                service.start(self.mActivity, argument)
+            self.service = service
+
+        elif platform in ('linux', 'linux2', 'macos', 'win'):
+            from runpy import run_path
+            from threading import Thread
+            self.service = Thread(
+                target=run_path,
+                args=['service/service.py'],
+                kwargs={'run_name': '__main__'},
+                daemon=True
+            )
+            self.service.start()
         else:
-            Logger.debug("UI: %s did not match" % (uuid,))
+            raise NotImplementedError(
+                "service start not implemented on this platform"
+            )
 
-        return matched
+    def stop_service(self):
+        if self.service:
+            if platform == "android":
+                self.service.stop(self.mActivity)
+            elif platform in ('linux', 'linux2', 'macos', 'win'):
+                self.service.stop()
+            else:
+                raise NotImplementedError(
+                    "service start not implemented on this platform"
+                )
+            self.service = None
 
-    def match_DE1_uuid_list(self, uuidlist: List[str]) -> bool:
-        for i in uuidlist:
-            if self.match_DE1_uuid(i):
-                return True
+    def send(self, *args):
+        self.client.send_message(b'/ping', [])
 
-        return False
+    def display_message(self, message):
+        if self.root:
+            self.root.ids.label.text += '{}\n'.format(message.decode('utf8'))
 
-    def ble_scan_check(self, dt):
-        """
-        Runs and updates the view of BLE devices
-        """
-        Logger.info("UI: Entering ble_scan_check()")
-        sw = self.BLEScanWidget
-        st = self.BLE.getBLEScanTool()
-        if st is None:
-            self.ScanEvent.cancel()
-            return
-
-        entries = st.getSeenEntries()
-        for i in entries:
-            if i not in self.ShownDevices:
-                self.ShownDevices.add(i)
-                Logger.info(f"UI: ble_scan_check: {i} : {entries[i]}")
-                item = entries[i]
-                if (item.uuids is not None) and self.match_DE1_uuid_list(item.uuids) and item.name.startswith("DE1"):
-                    sw.addDE1Node(item)
-                else:
-                    sw.addOtherNode(item)
-
-        if st.isScanning():
-            return
-
-        # If we get here, we are done.
-        Logger.info("UI: Cancelling ble_scan_check")
-        self.ScanEvent.cancel()
-
-        startedconn = False
-        for i in self.ShownDevices:
-            Logger.info("UI: Found: %s" % i)
-
-            item = entries[i]
-            Logger.info("UI: item: %s" % (item,))
-            if (item.uuids is not None) and (self.match_DE1_uuid_list(item.uuids)) and item.name.startswith("DE1"):
-                # We've found a DE1. Connect to it and break.
-                with open('KnownDE1s.txt', 'w') as f:
-                    json.dump(item.MAC, f)
-
-                self.do_connect(item.MAC)
-                startedconn = True
-                break
-
-        # if not startedconn:
-        #     # We haven't seen any DE1s this time.
-        #     try:
-        #         with open('KnownDE1s.txt', 'r') as f:
-        #             known = json.load(f)
-        #             self.do_connect(known)
-        #     except FileNotFoundError as e:
-        #         pass
-
-    def do_connect(self, mac: str):
-        self.DE1GATTClient = self.BLE.getGATTClient(mac)
-        gc = self.DE1GATTClient
-        gc.connect()
-        Logger.info("BLE: next")
-        uuid = '0000a001-0000-1000-8000-00805f9b34fb'
-        Logger.info("char_read: %s" % (gc.char_read(uuid),))
-        gc.callback_char_read(uuid, callback=self.cb_cr_done)
-        asyncio.run_coroutine_threadsafe(self.try_async_char_read(), asyncio.get_running_loop())
-
-    @exceptionCatcherForAsyncDecorator
-    async def try_async_char_read(self):
-        Logger.info("UI: try_async_char_read")
-        # r = await self.DE1GATTClient.async_char_read('0000a001-0000-1000-8000-00805f9b34fb')
-        Logger.info("async_char_read: %s" % (r,))
-
-    def cb_cr_done(self, result, dt):
-        Logger.info("UI: cb_cr_done(%s, %s)" % (result.getResult(), dt))
-
-    def cb_connect_done(self, result):
-        Logger.info("BLE: cb_connect_done: %s" % (result,))
-
-    def on_pause(self):
-        # self.BLE.on_pause()
-        return True
-
-    def on_resume(self):
-        # self.BLE.on_resume()
-        return True
-
-    def on_stop(self):
-        Logger.info("APP: on_stop()")
-        # self.BLE.on_stop()
-        if not self.StopFuture.done():
-            self.StopFuture.set_result(1)
+    def date(self, message):
+        if self.root:
+            self.root.ids.date.text = message.decode('utf8')
 
 
 if __name__ == '__main__':
-    loop = asyncio.get_event_loop()
-    StopFuture = asyncio.Future(loop=loop)
-    # server = wsserver.server.AsyncWSServer(Logger)
-    server = wsserver.server.SyncWSServer(Logger)
-
-    MainApp = DEDebugApp(loop, StopFuture)
-    from kivy.base import ExceptionHandler, ExceptionManager
-
-
-    class E(ExceptionHandler):
-        def handle_exception(self, inst):
-            Logger.exception('Exception caught by ExceptionHandler')
-            MainApp.stop()
-            return ExceptionManager.PASS
-
-
-    ExceptionManager.add_handler(E())
-
-    loop.create_task(MainApp.async_run(async_lib='asyncio'), name="Kivy Main App")
-    try:
-        loop.run_until_complete(StopFuture)   # Run app on_stop sets StopFuture
-    except KeyboardInterrupt:
-        Logger.info("KeyboardInterrupt caught.")
-        Logger.debug("EXCEPTION: %s" % (traceback.format_exc(),))
-
-    server.shutdown()
-    for task in asyncio.all_tasks(loop):  # Cancel any remaining tasks
-        task.cancel()
-    loop.close()
-
-    for thread in threading.enumerate():
-        print(thread.name)
-
+    ClientServerApp().run()

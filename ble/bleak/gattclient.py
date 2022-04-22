@@ -1,6 +1,8 @@
-from typing import Any, Callable, Dict, List, Tuple, Union
+from typing import Callable, List, Optional, Union
 
-from bleak import BleakClient, BleakError
+from bleak import BleakClient  # type: ignore
+from bleak.exc import BleakError
+from bleak.backends.characteristic import BleakGATTCharacteristic
 from bleak.backends.client import BaseBleakClient
 from bleak.backends.service import BleakGATTServiceCollection
 from kivy.logger import Logger
@@ -8,7 +10,7 @@ from kivy.logger import Logger
 from ble.bleops import ContextConverter, QOp, QOpExecutor, QOpManager, async_wrap_async_into_QOp, wrap_into_QOp
 from ble.gattclientinterface import GATTClientInterface, GATTCState
 from ble.bleexceptions import *
-from ble.uuidtype import CHAR_UUID
+from ble.uuidtype import CHAR_UUID, DESC_UUID
 
 
 class GATTClient(GATTClientInterface):
@@ -35,7 +37,7 @@ class GATTClient(GATTClientInterface):
     def __init__(self, macaddress: str, qopexecutor: QOpExecutor, contextconverter: ContextConverter):
         Logger.debug("BLE: ble.bleak.GATTClient.__init__(%s, %s, %s)" % (macaddress, qopexecutor, contextconverter))
         self.MAC = macaddress
-        self.BleakClient = BleakClient(self.MAC)
+        self.BleakClient : BaseBleakClient = BleakClient(self.MAC)
 
         self.State = GATTCState.INIT
         self.QOpExecutor = qopexecutor  # Holds a queue of operations that are run in their own thread
@@ -47,8 +49,7 @@ class GATTClient(GATTClientInterface):
         self.ConnCallback = None
 
     def __del__(self):
-        Logger.debug("BLE: sending disconnect to %s" % (self.MAC,))
-        self.disconnect()
+        Logger.debug("BLE: __del__() on bleak variant of GATTClient %s" % (self.MAC,))
 
     def shutdown(self):
         self.QOpExecutor.shutdown()
@@ -56,7 +57,7 @@ class GATTClient(GATTClientInterface):
     def getCharacteristicsUUIDs(self) -> List[str]:
         return list(self.Characteristics.keys())
 
-    def set_disc_callback(self, callback: Callable):
+    def set_disc_callback(self, callback: Callable[[GATTCState], None]):
         """
         Set a callback that is called when an unsolicited disconnection occurs.
 
@@ -66,7 +67,7 @@ class GATTClient(GATTClientInterface):
         """
         self.ConnCallback = callback
 
-        def disc_cb(client : BaseBleakClient):
+        def disc_cb(client : BaseBleakClient) -> None:
             # Called by BLEAK when a disconnect occurs
             Logger.debug("BLE: Unsolicited disconnect from %s" % (client.address,))
             if self.ConnCallback:
@@ -85,7 +86,7 @@ class GATTClient(GATTClientInterface):
 
     # *** Internal functions. No touchy!
 
-    async def _connect(self, manager=None, reason=None) -> GATTCState:
+    async def _connect(self, manager : Optional[QOpManager] = None, reason : Optional[str] = None) -> GATTCState:
         Logger.debug("BLE: GATTClient.connect() to '%s'" % self.MAC)
 
         if reason is not None:
@@ -110,7 +111,7 @@ class GATTClient(GATTClientInterface):
             # Discover our services on first connect. Remember them so we don't do this for reconnects.
             self.BleakGATTServiceCollection = await self.BleakClient.get_services()
 
-            self.Characteristics = {}
+            self.Characteristics : dict[str, BleakGATTCharacteristic] = {}
             for serv in self.BleakGATTServiceCollection:
                 for char in serv.characteristics:
                     uuidstr = char.uuid
@@ -131,7 +132,7 @@ class GATTClient(GATTClientInterface):
         else:
             return GATTCState.CONNECTED
 
-    async def _char_write(self, manager: Union[QOpManager, None], reason: Union[str, None], uuid : CHAR_UUID, data):
+    async def _char_write(self, manager: Union[QOpManager, None], reason: Union[str, None], uuid : CHAR_UUID, data : bytes):
         Logger.debug("BLE: _char_writed(%s, %s, manager=%s, reason=%s)" % (uuid, data.hex(), manager, reason))
 
         if reason is not None:
@@ -153,7 +154,7 @@ class GATTClient(GATTClientInterface):
         Logger.debug("BLE: _char_read result: %s" % (r,))
         return r
 
-    async def _set_notify(self, manager: Union[QOpManager, None], reason: Union[str, None], uuid : CHAR_UUID, enable : bool, notifycallback) -> None:
+    async def _set_notify(self, manager: Union[QOpManager, None], reason: Union[str, None], uuid : CHAR_UUID, enable : bool, notifycallback : Callable[[CHAR_UUID, bytes], None]) -> None:
         Logger.debug("BLE: _set_notify(%s, %s, %s, %s, %s)" % (uuid, enable, notifycallback, manager, reason))
 
         def do_cb(sender: int, data: bytearray):
@@ -172,7 +173,7 @@ class GATTClient(GATTClientInterface):
     # *** Async interface
 
     @async_wrap_async_into_QOp(_set_notify)
-    async def async_set_notify(self, uuid : CHAR_UUID, enable : bool, callback) -> None:
+    async def async_set_notify(self, uuid : CHAR_UUID, enable : bool, callback : Callable[[CHAR_UUID, bytes], None]) -> None:
         """
         Set notify on or off
         """
@@ -193,27 +194,28 @@ class GATTClient(GATTClientInterface):
         Logger.debug("BLE: async_disconnect(%s)" % (self.MAC,))
 
     @async_wrap_async_into_QOp(_char_read)
-    async def async_char_read(self, uuid):
+    async def async_char_read(self, uuid : CHAR_UUID):
         """
         Write a characteristic in a background thread and return result when it is done.
         """
         Logger.debug("BLE: async_char_read(%s)" % (uuid,))
 
     @async_wrap_async_into_QOp(_char_write)
-    async def async_char_write(self, uuid, data):
+    async def async_char_write(self, uuid : CHAR_UUID, data : bytes, requireresponse : bool):
         """
         Write a characteristic in a background thread and return result
         """
-        Logger.debug("BLE: async_char_write(%s, %s)" % (uuid, data))
+        Logger.debug("BLE: async_char_write(%s, %s, %s)" % (uuid, data, requireresponse))
 
     # *** Synchronous interface
 
     @wrap_into_QOp(_connect)
-    def connect(self):
+    def connect(self) -> GATTCState:
         """
         Blocking connect
         """
         Logger.debug("BLE: connect to %s" % (self.MAC,))
+        return GATTCState.DISCONNECTED
 
     @wrap_into_QOp(_disconnect)
     def disconnect(self):
@@ -246,6 +248,13 @@ class GATTClient(GATTClientInterface):
         """
         Logger.debug("BLE: set_notify(%s, %s, %s)" % (uuid, enable, notifycallback))
 
+    def descriptor_write(self, charuiid: CHAR_UUID, descuuid: DESC_UUID, data : bytes) -> None:
+        """
+        Synchronous write to a descriptor. Write occurs in a background thread,
+        but the calling thread is made to wait until there is a result.
+        """
+        raise NotImplementedError()
+
     # *** Callback interface
 
     def callback_char_read(self, uuid : CHAR_UUID, callback=None):
@@ -257,13 +266,13 @@ class GATTClient(GATTClientInterface):
         op = QOp(self._char_read, uuid, callback=self.CBConverter.convert(callback))
         self.QOpExecutor.Manager.addFIFOOp(op)
 
-    def callback_char_write(self, uuid : CHAR_UUID, data : bytes, callback=None):
+    def callback_char_write(self, uuid : CHAR_UUID, data : bytes, requireresponse : bool, callback=None):
         """
         Write a characteristic in a background thread and call back with
         an OpResult.
         """
         Logger.debug("BLE: callback_char_write(%s, %s)" % (uuid, data))
-        op = QOp(self._char_write, uuid, data, callback=self.CBConverter.convert(callback))
+        op = QOp(self._char_write, uuid, data, requireresponse, callback=self.CBConverter.convert(callback))
         self.QOpExecutor.Manager.addFIFOOp(op)
 
     def is_connected(self) -> bool:

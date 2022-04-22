@@ -1,5 +1,6 @@
 import asyncio
 import threading
+from typing import Any, Awaitable
 
 # This is the async loop that will be run in a background thread, for all BLE
 # operations
@@ -26,7 +27,7 @@ def get_BGAsyncLoop():
     return _AsyncLoop
 
 
-def run_coroutine_threadsafe(coroutine):
+def run_coroutine_threadsafe(coroutine : Awaitable[Any]):
     print("Running %s in %s" % (coroutine, _AsyncLoop))
     assert(_AsyncLoop != None)
     return asyncio.run_coroutine_threadsafe(coroutine, _AsyncLoop)

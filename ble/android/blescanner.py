@@ -9,11 +9,12 @@ from typing import List, Dict, Any
 from ble.bleexceptions import BLEAlreadyScanning
 from ble.android.pyscancallback import PyScanCallback
 from ble.blescanresult import BLEScanResult
+from ble.blescantoolinterface import I_BLEScanTool
 
 ScanCallbackImpl = autoclass("org.decentespresso.dedebug.ScanCallbackImpl")
 PSCB = PyScanCallback()
 
-class BLEScanTool:
+class BLEScanTool(I_BLEScanTool):
   """
   Wraps everything to do with scanning, as it's a lot of code.
 
@@ -28,8 +29,8 @@ class BLEScanTool:
   Only one scantool object should be scanning at a time.
   """
   def __init__(self):
-    self.ScanQ = deque() # Thread safe, in case callbacks are in another thread
-    self.Seen = {}   # Results of the current scan
+    self.ScanQ : deque[BLEScanResult] = deque() # Thread safe, in case callbacks are in another thread
+    self.Seen : dict[str, BLEScanResult] = {}   # Results of the current scan
     self.Previous = {} # Results of previous scans
     self.StartTime = time.time()
     self.Duration = 0.0

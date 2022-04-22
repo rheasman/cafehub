@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
 import enum
-from typing import Callable, List
+from typing import Callable, List, Union
+from ble.android.androidtypes import T_Context
 
-from ble.bleops import ContextConverter, QOpManager
+from ble.bleops import ContextConverter, OpResult, QOpManager
 
 from enum import Enum
 
@@ -53,14 +54,16 @@ class GATTClientInterface(ABC):
     """
 
     @abstractmethod
-    def __init__(self, macaddress: str, qopmanager: QOpManager, contextconverter: ContextConverter):
+    def __init__(self, macaddress: str, qopmanager: QOpManager, contextconverter: ContextConverter, androidcontext : T_Context = None):
         """
         Create an object to talk to a GATT Server. Will not actually do anything
         until connect is called.
+
+        In android, provide the context in androidcontext
         """
 
     @abstractmethod
-    def set_disc_callback(self, callback: Callable):
+    def set_disc_callback(self, callback: Callable[[GATTCState], None]):
         """
         Set a callback that is called when we receive and unsolicited disconnection.
         See GATTCState.
@@ -96,7 +99,7 @@ class GATTClientInterface(ABC):
         """
 
     @abstractmethod
-    async def async_char_write(self, uuid: CHAR_UUID, data : bytes):
+    async def async_char_write(self, uuid: CHAR_UUID, data : bytes, requireresponse : bool):
         """
         Write a characteristic in a background thread and return result
         """
@@ -110,7 +113,7 @@ class GATTClientInterface(ABC):
         """
 
     @abstractmethod
-    def disconnect(self) -> GATTCState:
+    def disconnect(self) -> None:
         """
         Blocking disconnect
         """
@@ -123,7 +126,7 @@ class GATTClientInterface(ABC):
         """
 
     @abstractmethod
-    def char_write(self, uuid : CHAR_UUID, data) -> None:
+    def char_write(self, uuid : CHAR_UUID, data : bytes, requireresponse : bool) -> None:
         """
         Synchronous (i.e. blocking) write of a characteristic. Write
         occurs in a background thread, but the calling thread is made to
@@ -140,7 +143,7 @@ class GATTClientInterface(ABC):
     # *** Callback interface
 
     @abstractmethod
-    def set_notify(self, uuid : CHAR_UUID, enable : bool, notifycallback) -> None:
+    def set_notify(self, uuid : CHAR_UUID, enable : bool, notifycallback : Callable[[CHAR_UUID,bytes], None]) -> None:
         """
         Synchronous request to enable/disable notifies on a characteristic.
 
@@ -148,14 +151,14 @@ class GATTClientInterface(ABC):
         """
 
     @abstractmethod
-    def callback_char_read(self, uuid : CHAR_UUID, callback=None):
+    def callback_char_read(self, uuid : CHAR_UUID, callback : Callable[ [OpResult[bytes]], None ]):
         """
         Read a characteristic in a background thread and call back with
         an OpResult, which will contain a bytearray.
         """
 
     @abstractmethod
-    def callback_char_write(self, uuid : CHAR_UUID, data : bytes, callback=None):
+    def callback_char_write(self, uuid : CHAR_UUID, data : bytes, requireresponse : bool, callback: Union[ Callable[[OpResult[None]], None], None ] = None):
         """
         Write a characteristic in a background thread and call back with
         an OpResult.

@@ -1,9 +1,9 @@
 import abc
-from typing import List, Dict, Any
+from typing import Dict
 from blescanresult import BLEScanResult
 
 
-class BLEScanTool(metaclass=abc.ABCMeta):
+class I_BLEScanTool(metaclass=abc.ABCMeta):
   """
   Wraps everything to do with scanning, as it's a lot of code.
 
@@ -47,7 +47,7 @@ class BLEScanTool(metaclass=abc.ABCMeta):
     """
 
   @abc.abstractmethod
-  def startScan(self, duration):
+  def startScan(self, duration : float):
     """
     Copy self.Seen to self.Previous and fill self.Seen with new entries for "duration" seconds.
 
