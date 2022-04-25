@@ -1,5 +1,7 @@
 from kivy.logger import Logger
-from jnius import PythonJavaClass, java_method  # type: ignore
+from jnius import PythonJavaClass, java_method # type: ignore
+from ble.android.androidtypes import T_JavaListOf, T_ScanResult
+from ble.android.blescanner import BLEScanTool  # type: ignore
 from ble.blescanresult import BLEScanResult
 
 class PyScanCallback(PythonJavaClass):
@@ -21,17 +23,17 @@ class PyScanCallback(PythonJavaClass):
   __javacontext__ = 'app'  # Use the app class resolver, not the system resolver.
 
   @java_method('(Ljava/util/List;)V')
-  def onBatchScanResults(self, srlist):
+  def onBatchScanResults(self, srlist : T_JavaListOf[T_ScanResult]):
     # public void onBatchScanResults(List<ScanResult> results)
     Logger.debug(f"BLE: onBatchScanResults") #: {repr(srlist)}")
 
   @java_method('(I)V')
-  def onScanFailed(self, errorCode):
+  def onScanFailed(self, errorCode : int):
     # void onScanFailed(int errorCode)
     Logger.debug(f"BLE: onScanFailed: {errorCode}")
 
   @java_method('(ILandroid/bluetooth/le/ScanResult;)V')
-  def onScanResult(self, callbackType, result):
+  def onScanResult(self, callbackType : int, result : T_ScanResult):
     # void onScanResult(int callbackType, ScanResult result);
 
     Logger.debug(f"BLE: onScanResult: callBackType: {callbackType}")
@@ -42,8 +44,7 @@ class PyScanCallback(PythonJavaClass):
 
     macaddress = result.device.getAddress()
     uuids = record.getServiceUuids()
-    if uuids:
-      uuids = [x.toString() for x in record.getServiceUuids().toArray()]
+    uuids = [x.toString() for x in record.getServiceUuids().toArray()]
     Logger.debug(f"BLE: onScanResult: DeviceName: {name}")
     Logger.debug(f"BLE: onScanResult: Device MAC: {macaddress}")
     Logger.debug(f"BLE: onScanResult: UUIDs: {uuids}")
@@ -53,7 +54,7 @@ class PyScanCallback(PythonJavaClass):
     # 0000ffff-0000-1000-8000-00805f9b34fb
     self.Parent._addEntry(res)
 
-  def setParent(self, parent):
+  def setParent(self, parent: BLEScanTool):
     """
     At some point pyjnius became unable to find classes if not run in the main thread.
     This is a problem, because we want to run this in a background thread.
@@ -62,5 +63,5 @@ class PyScanCallback(PythonJavaClass):
     """
     self.Parent = parent
 
-  def __init__(self,):
-    super(PyScanCallback, self).__init__() 
+  def __init__(self):
+    super(PyScanCallback, self).__init__() # type: ignore

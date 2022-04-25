@@ -3,7 +3,8 @@ import threading
 from typing import Any, Dict, Union
 
 from kivy.logger import Logger
-from jnius import autoclass
+from jnius import autoclass # type: ignore
+from ble.android.androidtypes import T_BluetoothAdapter, T_BluetoothClassicAdapter, T_BluetoothDevice, T_Context, T_Intent, T_Java_String, T_Native_Invocation_Handler, T_PythonActivity
 
 # from android.broadcast import BroadcastReceiver
 
@@ -13,7 +14,6 @@ from ble.bleops import QOpExecutorFactory, ContextConverter
 from ble.bleinterface import BLEInterface
 from ble.blescantoolinterface import I_BLEScanTool
 from ble.gattclientinterface import GATTClientInterface
-from androidtypes import *
 
 PythonActivity : T_PythonActivity = autoclass('org.kivy.android.PythonActivity')
 Intent : T_Intent = autoclass('android.content.Intent')

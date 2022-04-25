@@ -1,7 +1,7 @@
 import abc
 from typing import Dict
-from blescanresult import BLEScanResult
 
+from ble.blescanresult import BLEScanResult
 
 class I_BLEScanTool(metaclass=abc.ABCMeta):
   """

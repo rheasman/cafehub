@@ -1,17 +1,17 @@
 from kivy.logger import Logger
-from jnius import PythonJavaClass, autoclass
+from jnius import autoclass # type: ignore
 from collections import deque
 import time
 
-from dataclasses import dataclass
-from typing import List, Dict, Any
+from typing import Dict
+from ble.android.androidtypes import T_BluetoothAdapter, T_BluetoothLeScanner, T_ScanCallbackImpl
 
 from ble.bleexceptions import BLEAlreadyScanning
 from ble.android.pyscancallback import PyScanCallback
 from ble.blescanresult import BLEScanResult
 from ble.blescantoolinterface import I_BLEScanTool
 
-ScanCallbackImpl = autoclass("org.decentespresso.dedebug.ScanCallbackImpl")
+ScanCallbackImpl : T_ScanCallbackImpl = autoclass("org.decentespresso.dedebug.ScanCallbackImpl")
 PSCB = PyScanCallback()
 
 class BLEScanTool(I_BLEScanTool):
@@ -31,7 +31,7 @@ class BLEScanTool(I_BLEScanTool):
   def __init__(self):
     self.ScanQ : deque[BLEScanResult] = deque() # Thread safe, in case callbacks are in another thread
     self.Seen : dict[str, BLEScanResult] = {}   # Results of the current scan
-    self.Previous = {} # Results of previous scans
+    self.Previous : Dict[str, BLEScanResult] = {} # Results of previous scans
     self.StartTime = time.time()
     self.Duration = 0.0
     self.Scanning = False
@@ -105,15 +105,13 @@ class BLEScanTool(I_BLEScanTool):
 
     self.Seen = {}
 
-    self.BLEAdapterClass = autoclass('android.bluetooth.BluetoothAdapter')
+    self.BLEAdapterClass : T_BluetoothAdapter = autoclass('android.bluetooth.BluetoothAdapter')
 
-    # ScanCallbackImpl = autoclass("org/decentespresso/dedebug/ScanCallbackImpl")
-    # ScanCallbackImpl = autoclass("org.decentespresso.dedebug.ScanCallbackImpl")
     PSCB.setParent(self)
     pycallback = PSCB
 
 
-    self.ScanCallback = ScanCallbackImpl()
+    self.ScanCallback : T_ScanCallbackImpl = ScanCallbackImpl()
     self.ScanCallback.setImpl(pycallback)
     
     # NB: pyjnius doesn't increase an objects refcount if it is given to a
@@ -123,7 +121,7 @@ class BLEScanTool(I_BLEScanTool):
 
     self.ScanCallbackRef = pycallback
 
-    self.BLEScanner = self.BLEAdapterClass.getBluetoothLeScanner()
+    self.BLEScanner : T_BluetoothLeScanner = self.BLEAdapterClass.getBluetoothLeScanner()
     self.BLEScanner.stopScan(self.ScanCallback)
     self.BLEScanner.startScan(self.ScanCallback)
     self.Scanning = True
