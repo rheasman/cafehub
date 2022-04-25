@@ -37,7 +37,7 @@ version = 0.1
 
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
-requirements = python3==3.10.4,hostpython3==3.10.4,kivy==2.1.0,pyjnius,websocket-server,pydantic,oscpy
+requirements = python3==3.8.12,hostpython3==3.8.12,kivy==2.1.0,pyjnius,websocket-server,pydantic,oscpy
 
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes
@@ -102,7 +102,7 @@ android.permissions = INTERNET, ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION, BL
 #android.features = android.hardware.usb.host
 
 # (int) Target Android API, should be as high as possible.
-android.api = 21
+android.api = 27
 
 # (int) Minimum API your APK will support.
 android.minapi = 21
