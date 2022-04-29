@@ -1,0 +1,2 @@
+class Texture:
+    pass

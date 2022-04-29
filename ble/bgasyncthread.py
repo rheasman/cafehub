@@ -26,7 +26,6 @@ _ThreadStarted.wait()  # Wait until thread has been started
 def get_BGAsyncLoop():
     return _AsyncLoop
 
-
 def run_coroutine_threadsafe(coroutine : Awaitable[Any]):
     print("Running %s in %s" % (coroutine, _AsyncLoop))
     assert(_AsyncLoop != None)

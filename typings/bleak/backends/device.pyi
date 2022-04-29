@@ -9,6 +9,8 @@ from typing import Any
 
 class BLEDevice:
     """A simple wrapper class represent"""
+    address : str
+    name : str
     def __init__(self, address : str, name : str, details: Any, rssi: Any, **kwargs: Any) -> None:
         ...
     
@@ -17,6 +19,7 @@ class BLEDevice:
     
     def __repr__(self) -> str:
         ...
+    
     
 
 

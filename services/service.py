@@ -2,27 +2,23 @@
 from random import sample, randint
 from string import ascii_letters
 from time import localtime, asctime, sleep
+import typing
 
 from oscpy.server import OSCThreadServer
 from oscpy.client import OSCClient
 
-from jnius import autoclass
+from jnius import autoclass # type: ignore
 
 from kivy.logger import Logger, LOG_LEVELS
+
+from ble.android.androidtypes import T_BLEService, T_BluetoothDevice, T_Context, T_Drawable, T_Intent, T_Java_String, T_Native_Invocation_Handler, T_NotificationAction, T_NotificationBuilder, T_PendingIntent, T_PowerManager, T_PythonActivity, T_PythonService
 Logger.setLevel(LOG_LEVELS["debug"])
 
-from kivy.base import ExceptionHandler, ExceptionManager
+# from kivy.base import ExceptionHandler, ExceptionManager
 
-from typing import Dict
+from typing import Any
 
 from kivy.logger import Logger
-# from android.broadcast import BroadcastReceiver
-
-from ble.android.blescanner import BLEScanTool
-from ble.android.gattclient import GATTClient
-from ble.bleops import QOpExecutorFactory, QOp, ContextConverter, QOpExecutor
-from ble.bleinterface import BLEInterface
-from ble.gattclientinterface import GATTClientInterface
 
 # class E(ExceptionHandler):
 #     def handle_exception(self, inst):
@@ -38,24 +34,24 @@ from ble.gattclientinterface import GATTClientInterface
 
 # Logger.debug("SYS:" + os.path.dirname(kivy.__file__))
 
-CLIENT = OSCClient('localhost', 3002)
+CLIENT = OSCClient('localhost', 4002)
 
-Context = autoclass('android.content.Context')
-Intent = autoclass('android.content.Intent')
-PendingIntent = autoclass('android.app.PendingIntent')
-AndroidString = autoclass('java.lang.String')
-NotificationBuilder = autoclass('android.app.Notification$Builder')
-Action = autoclass('android.app.Notification$Action')
-PythonService = autoclass('org.kivy.android.PythonService')
+Context : T_Context = autoclass('android.content.Context')
+Intent : T_Intent = autoclass('android.content.Intent')
+PendingIntent : T_PendingIntent = autoclass('android.app.PendingIntent')
+AndroidString : T_Java_String = autoclass('java.lang.String')
+NotificationBuilder : T_NotificationBuilder = autoclass('android.app.Notification$Builder')
+Action : T_NotificationAction = autoclass('android.app.Notification$Action')
+PythonService : T_PythonService = autoclass('org.kivy.android.PythonService')
 # PythonService = autoclass('org.decentespresso.dedebug.StickyService')
 # PythonService = autoclass('org.kivy.android.StickyService')
-PythonActivity = autoclass('org.kivy.android.PythonActivity')
-BluetoothDevice = autoclass('android.bluetooth.BluetoothDevice')
-String = autoclass('java.lang.String')
-InvHandler = autoclass("org.jnius.NativeInvocationHandler")
-PowerManager = autoclass('android.os.PowerManager')
+PythonActivity : T_PythonActivity = autoclass('org.kivy.android.PythonActivity')
+BluetoothDevice : T_BluetoothDevice = autoclass('android.bluetooth.BluetoothDevice')
+String : T_Java_String = autoclass('java.lang.String')
+InvHandler : T_Native_Invocation_Handler = autoclass("org.jnius.NativeInvocationHandler")
+PowerManager : T_PowerManager = autoclass('android.os.PowerManager')
 
-def ping(*_):
+def ping(*_ : Any):
     'answer to ping messages'
     CLIENT.send_message(
         b'/message',
@@ -73,10 +69,10 @@ def send_date():
         [asctime(localtime()).encode('utf8'), ],
     )
 
-def setup_service_notify(ptext, pmessage):
-    service = PythonService.mService
+def setup_service_notify(ptext : str, pmessage : str):
+    service : T_BLEService = typing.cast(T_BLEService, PythonService.mService)
     Logger.info("BLEService: " + service.getPackageName())
-    Drawable = autoclass("{}.R$drawable".format(service.getPackageName()))
+    Drawable : T_Drawable = autoclass("{}.R$drawable".format(service.getPackageName()))
 
     # convert input text into a java string
     text = AndroidString(ptext.encode('utf-8'))
@@ -94,10 +90,20 @@ def setup_service_notify(ptext, pmessage):
     service.startForeground(1, notification)
     Logger.info("BLEService: Posted foreground notification")
 
+KeepRunning = True
+
+def shutdown(*args : Any):
+    PythonService.mService.setAutoRestartService(False)
+    global KeepRunning
+    KeepRunning = False
+    PythonService.mService.stopSelf()
+    
 if __name__ == '__main__':
     SERVER = OSCThreadServer()
-    SERVER.listen('localhost', port=3000, default=True)
+    SERVER.listen('localhost', port=4000, default=True)
     SERVER.bind(b'/ping', ping)
+    SERVER.bind(b'/shutdown', shutdown)
+
     setup_service_notify(u"CafeHub is proxying BLE", "Started: " + asctime(localtime()))
 
     activity = PythonActivity.mActivity
@@ -105,7 +111,7 @@ if __name__ == '__main__':
     Logger.debug("Bleservice: StartType = %s" % (PythonService.mService.startType(),))
 
 
-    pm = PythonService.mService.getSystemService(Context.POWER_SERVICE)
+    pm : T_PowerManager = PythonService.mService.getSystemService(Context.POWER_SERVICE)
     wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, 'TAG')
 
     wl.acquire()
@@ -114,7 +120,7 @@ if __name__ == '__main__':
     server = wsserver.server.SyncWSServer(Logger, PythonService.mService)
 
     try:
-        while True:
+        while KeepRunning:
             sleep(1)
             send_date()
     finally:

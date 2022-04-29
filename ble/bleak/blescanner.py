@@ -4,7 +4,9 @@ import time
 from collections import deque
 from typing import Dict
 
-from bleak import BleakScanner
+from bleak import BleakScanner # type: ignore
+from bleak.backends.device import BLEDevice
+from bleak.backends.scanner import AdvertisementData, BaseBleakScanner
 from kivy.logger import Logger
 
 from ble.bleexceptions import BLEAlreadyScanning
@@ -29,9 +31,9 @@ class BLEScanTool(I_BLEScanTool):
     """
 
     def __init__(self):
-        self.ScanQ = deque()  # Thread safe, in case callbacks are in another thread
-        self.Seen = {}  # Results of the current scan
-        self.Previous = {}  # Results of previous scans
+        self.ScanQ : deque[BLEScanResult] = deque()  # Thread safe, in case callbacks are in another thread
+        self.Seen : Dict[str, BLEScanResult] = {}  # Results of the current scan
+        self.Previous : Dict[str, BLEScanResult] = {}  # Results of previous scans
         self.StartTime = time.time()
         self.Duration = 0.0
         self.Scanning = False
@@ -64,6 +66,9 @@ class BLEScanTool(I_BLEScanTool):
 
         0.0 means scanning completed (or has never happened)
         """
+        if not self.isScanning():
+            return 0.0
+      
         left = self.Duration - (time.time() - self.StartTime)
         if left > 0.0:
             return left
@@ -78,7 +83,7 @@ class BLEScanTool(I_BLEScanTool):
         """
         return self.Previous
 
-    def _addEntry(self, entry: BLEScanResult):
+    def addEntry(self, entry: BLEScanResult):
         """
         Internal call to add scanned entries
         """
@@ -129,7 +134,7 @@ class BLEScanTool(I_BLEScanTool):
 
     async def _bgScan(self):
         Logger.debug("Bleak scanner starting")
-        self.BLEScanner = BleakScanner()
+        self.BLEScanner : BaseBleakScanner = BleakScanner()
         self.BLEScanner.register_detection_callback(self.detection_callback)
         await self.BLEScanner.start()
         Logger.debug("Bleak scanner started")
@@ -145,7 +150,8 @@ class BLEScanTool(I_BLEScanTool):
             else:
                 await asyncio.sleep(0.25)
 
-    def detection_callback(self, device, advertisement_data):
+    # Callable[[BLEDevice, AdvertisementData], Optional[Awaitable[None]]]
+    def detection_callback(self, device : BLEDevice, advertisement_data : AdvertisementData):
         Logger.debug("BLE: Bleak BLE Scanner detection_callback(%s, %s)" % (device, advertisement_data))
         item = BLEScanResult(device.address, device.name, advertisement_data.service_uuids, None, None)
-        self._addEntry(item)
+        self.addEntry(item)

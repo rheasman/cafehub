@@ -1,6 +1,6 @@
 import collections
 import enum
-from typing import ByteString, Deque, Tuple
+from typing import Deque, Iterable, Tuple
 
 from jnius import PythonJavaClass, java_method  # type: ignore
 from kivy.logger import Logger
@@ -82,7 +82,7 @@ class PyBluetoothGattCallback(PythonJavaClass):
         self.QOnDescriptorWrite : Deque[Tuple[str, AndroidGATTStatus]] = collections.deque()
 
     @java_method("(II)V")
-    def onConnectionStateChange(self, status, new_state):
+    def onConnectionStateChange(self, status : int, new_state : int) -> None:
         status = AndroidGATTStatus(status)
         new_state = AndroidConnState(new_state)
         Logger.debug("BLE: onConnectionStateChange(%s, %s)" % (status, new_state))
@@ -91,7 +91,7 @@ class PyBluetoothGattCallback(PythonJavaClass):
         self.SemaOnConnectionStateChange.up()
 
     @java_method("(I)V")
-    def onServicesDiscovered(self, status):
+    def onServicesDiscovered(self, status : int) -> None:
         status = AndroidGATTStatus(status)
         Logger.debug("BLE: onServicesDiscovered(%s)" % (status,))
 
@@ -99,7 +99,7 @@ class PyBluetoothGattCallback(PythonJavaClass):
         self.SemaOnServicesDiscovered.up()
 
     @java_method("(Ljava/lang/String;[B)V")
-    def onCharacteristicChanged(self, uuid, value):
+    def onCharacteristicChanged(self, uuid : str, value : Iterable[int]) -> None:
         value = bytearray(value)
         Logger.debug("BLE: onCharacteristicChanged(%s, %s)" % (uuid, value))
 
@@ -107,7 +107,7 @@ class PyBluetoothGattCallback(PythonJavaClass):
         self.SemaOnCharacteristicChanged.up()
 
     @java_method("(Ljava/lang/String;I[B)V")
-    def onCharacteristicRead(self, uuid, status, value):
+    def onCharacteristicRead(self, uuid : str, status : int, value : Iterable[int]) -> None:
         status = AndroidGATTStatus(status)
         value = bytearray(value)
         Logger.debug("BLE: onCharacteristicRead(%s, %s, %s)" % (uuid, status, value.hex().upper()))
@@ -116,7 +116,7 @@ class PyBluetoothGattCallback(PythonJavaClass):
         self.SemaOnCharacteristicRead.up()
 
     @java_method("(Ljava/lang/String;I)V")
-    def onCharacteristicWrite(self, uuid, status):
+    def onCharacteristicWrite(self, uuid : str, status : int) -> None:
         status = AndroidGATTStatus(status)
         Logger.debug("BLE: onCharacteristicWrite(%s, %s)" % (uuid, status))
 
@@ -124,15 +124,16 @@ class PyBluetoothGattCallback(PythonJavaClass):
         self.SemaOnCharacteristicWrite.up()
 
     @java_method("(Ljava/lang/String;I[B)V")
-    def onDescriptorRead(self, uuid, status, value):
+    def onDescriptorRead(self, uuid : str, status : int, value : Iterable[int]) -> None:
         status = AndroidGATTStatus(status)
+        value = bytearray(value)
         Logger.debug("BLE: onDescriptorRead(%s, %s, %s)" % (uuid, status, value))
 
         self.QOnDescriptorRead.appendleft((uuid, status, value))
         self.SemaOnDescriptorRead.up()
 
     @java_method("(Ljava/lang/String;I)V")
-    def onDescriptorWrite(self, uuid, status):
+    def onDescriptorWrite(self, uuid : str, status : int) -> None:
         status = AndroidGATTStatus(status)
         Logger.debug("BLE: onDescriptorWrite(%s, %s)" % (uuid, status))
 

@@ -58,6 +58,9 @@ class BLEScanTool(I_BLEScanTool):
 
     0.0 means scanning completed (or has never happened)
     """
+    if not self.isScanning():
+      return 0.0
+      
     left = self.Duration - (time.time() - self.StartTime)
     if left > 0.0:
       return left
@@ -72,16 +75,15 @@ class BLEScanTool(I_BLEScanTool):
     """
     return self.Previous
 
-  def _addEntry(self, entry: BLEScanResult):
+  def addEntry(self, entry: BLEScanResult):
     """
-    Internal call to add scanned entries
+    Internalish call to add scanned entries
     """
     self.ScanQ.append(entry)
     tdelta = time.time() - self.StartTime
     if tdelta > self.Duration:
       # We have been scanning for long enough
-      self.BLEScanner.stopScan(self.ScanCallback)
-      self.Scanning = False
+      self.stopScanning()
       Logger.debug("Duration reached. Asking Android to stop scan.");
 
   def _resetTimer(self):
@@ -89,6 +91,10 @@ class BLEScanTool(I_BLEScanTool):
     Sets timestamp to now, so we can measure the duration of a scan
     """
     self.StartTime = time.time()
+
+  def stopScanning(self) -> None:
+      self.BLEScanner.stopScan(self.ScanCallback)
+      self.Scanning = False
 
   def startScan(self, duration: float):
     """

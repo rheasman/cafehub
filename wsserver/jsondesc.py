@@ -122,7 +122,7 @@ class ParseException(Exception):
 
 
 class WSBLEParser:
-    def parse_obj(self, obj : Dict):
+    def parse_obj(self, obj : Dict[str, Any]) -> Dict[str, Any]:
         """
         Parses objects sent to the server by the client.
         """
@@ -140,12 +140,12 @@ class WSBLEParser:
         else:
             raise ParseException('Unknown type: %s' % (otype,))
 
-    def check_exists(self, keylist, obj, err):
+    def check_exists(self, keylist : List[str], obj : Dict[str, Any], err : str) -> None:
         for key in keylist:
             if key not in obj:
                 raise ParseException(err % (key,))
 
-    def parse_resp(self, resp):
+    def parse_resp(self, resp : Dict[str, Any]) -> Dict[str, Any]:
         """
         {
             type   : "RESP",
@@ -171,8 +171,9 @@ class WSBLEParser:
         self.check_exists(['eid', 'errmsg'], error, "Could not find '%s' field in error")
 
         # TODO results
+        return resp
 
-    def parse_req(self, obj):
+    def parse_req(self, obj : Dict[str, Any]) -> Dict[str, Any]:
         """
         {
             type   : "REQ",
@@ -197,7 +198,7 @@ class WSBLEParser:
             # Scan(Timeout : int)
             self.check_exists(['Timeout'], params, 'No %s in Scan request params')
             self.parse_Timeout(params['Timeout'], "Timeout is not an integer")
-            return
+            return obj
         
         if obj['command'] == 'GATTRead':
             # GATTRead(MAC : string, Characteristic : string, Len : int)
@@ -206,7 +207,7 @@ class WSBLEParser:
             self.parse_MAC(params['MAC'])
             self.parse_Char(params['Char'])
             self.parse_Len(params['Len'])
-            return
+            return obj
 
         if obj['command'] == 'GATTSetNotify':
             # GATTSetNotify(MAC: string, Char: string, Enable: bool)
@@ -215,7 +216,7 @@ class WSBLEParser:
             self.parse_MAC(params['MAC'])
             self.parse_Char(params['Char'])
             self.parse_Bool(params['Enable'])
-            return
+            return obj
 
         if obj['command'] == 'GATTWrite':
             # GATTWrite(MAC: string: Char: string, Data: Base64Data)
@@ -224,53 +225,55 @@ class WSBLEParser:
             self.parse_MAC(params['MAC'])
             self.parse_Char(params['Char'])
             self.parse_Data(params['Data'])
-            return
+            return obj
 
         if obj['command'] == 'GATTConnect':
             # GATTConnect(MAC: string)
             self.check_exists(['MAC'], params, 'No %s in GATTConnect request params')
 
             self.parse_MAC(params['MAC'])
-            return
+            return obj
 
         if obj['command'] == 'GATTDisconnect':
             # GATTDisconnect(MAC: string)
             self.check_exists(['MAC'], params, 'No %s in GATTConnect request params')
 
             self.parse_MAC(params['MAC'])
-            return
+            return obj
 
-    def parse_int(self, num, msg):
+        return obj
+
+    def parse_int(self, num : Any, msg : str):
         if not isinstance(num, int):
             raise ParseException(msg)
 
-    def parse_Timeout(self, num, msg):
+    def parse_Timeout(self, num : Any, msg : str):
         self.parse_int(num, msg)
         if num > (1 << 32):
             raise ParseException("Timeout is too large")
 
-    def parse_MAC(self, mac):
+    def parse_MAC(self, mac : Any):
         # TODO: Do a basic check of MAC. Nothing too slow or complex.
         pass
 
-    def parse_Char(self, char):
+    def parse_Char(self, char: Any):
         # TODO: Do a basic check of Char UUID. Nothing too slow or complex.
         pass
 
-    def parse_Bool(self, boolval):
+    def parse_Bool(self, boolval: Any):
         # TODO: Do a basic check of boolval. Nothing too slow or complex.
         pass
 
-    def parse_Data(self, data):
+    def parse_Data(self, data: Any):
         # TODO: Do a basic check of Data. Nothing too slow or complex.
         pass
 
-    def parse_Len(self, rlen):
+    def parse_Len(self, rlen: Any):
         # TODO: Do a basic check of Length
         pass
 
 
-def make_req(command : str, rid : int, params : Dict) -> Dict:
+def make_req(command : str, rid : int, params : Dict[str, Any]) -> Dict[str, Any]:
     return {
         'type'   : 'REQ',
         'command': command,
@@ -279,14 +282,14 @@ def make_req(command : str, rid : int, params : Dict) -> Dict:
     }
 
 
-def make_error(eid : int, errmsg : str):
+def make_error(eid : int, errmsg : str) -> Dict[str, Any]:
     return {
         'eid' : eid,
         'errmsg' : errmsg
     }
 
 
-def make_resp(rid : int, error : Dict, results : Dict):
+def make_resp(rid : int, error : Dict[str, Any], results : Dict[str, str]) -> Dict[str, Any]:
     return {
         'type'    : 'RESP',
         'id'      : rid,
@@ -295,7 +298,7 @@ def make_resp(rid : int, error : Dict, results : Dict):
     }
 
 
-def make_update(uid : int, updatetype : str, results : Dict) -> Dict:
+def make_update(uid : int, updatetype : str, results : Dict[str, Any]) -> Dict[str, Any]:
     return {
         'type'    : "UPDATE",
         'id'      : uid,
@@ -312,7 +315,7 @@ def make_Scan(timeout : int, rid : int):
     return make_req("Scan", rid, params)
 
 
-def make_ConnectionState(uid : int, mac : str, state : GATTCState, uuids : List[str]) -> Dict:
+def make_ConnectionState(uid : int, mac : str, state : GATTCState, uuids : List[str]) -> Dict[str, Any]:
     return make_update(uid, "ConnectionState", {
         "CState" : state.name,
         "MAC"    : mac,
@@ -320,7 +323,7 @@ def make_ConnectionState(uid : int, mac : str, state : GATTCState, uuids : List[
     })
 
 
-def make_GATTWrite(rid : int, mac : str, char : str, data : bytes, requireresponse : bool) -> Dict:
+def make_GATTWrite(rid : int, mac : str, char : str, data : bytes, requireresponse : bool) -> Dict[str, Any]:
     params = {
         'MAC'  : mac,
         'Char' : char,
@@ -340,7 +343,7 @@ def make_GATTWrite_as_JSON(rid : int, mac : str, char : str, data : bytes, requi
     return json.dumps(make_req("GATTWrite", rid, params))
 
 
-def make_GATTRead(rid, mac, char, rlen):
+def make_GATTRead(rid : int, mac : str, char : str, rlen : int):
     params = {
         'MAC'  : mac,
         'Char' : char,
@@ -349,25 +352,25 @@ def make_GATTRead(rid, mac, char, rlen):
     return make_req('GATTRead', rid, params)
 
 
-def make_GATTRead_as_JSON(rid, mac, char, rlen):
+def make_GATTRead_as_JSON(rid : int, mac : str, char : str, rlen : int):
     return json.dumps(make_GATTRead(rid, mac, char, rlen))
 
 
-def make_GATTConnect(rid : int, mac : str) -> Dict:
+def make_GATTConnect(rid : int, mac : str) -> Dict[str, Any]:
     params = {
         'MAC' : mac,
     }
     return make_req('GATTConnect', rid, params)
 
 
-def make_GATTDisconnect(rid : int, mac : str) -> Dict:
+def make_GATTDisconnect(rid : int, mac : str) -> Dict[str, Any]:
     params = {
         'MAC' : mac,
     }
     return make_req('GATTDisconnect', rid, params)
 
 
-def make_update_from_blescanresult(uid : int, scanresult : BLEScanResult) -> Dict:
+def make_update_from_blescanresult(uid : int, scanresult : BLEScanResult) -> Dict[str, Any]:
     # ScanResult(MAC : string, Name : string, UUIDS : List[str])
     results = {
         'MAC'   : scanresult.MAC,
@@ -377,7 +380,7 @@ def make_update_from_blescanresult(uid : int, scanresult : BLEScanResult) -> Dic
     return make_update(uid, 'ScanResult', results)
 
 
-def make_execution_error(uid, eid, error : str) -> Dict:
+def make_execution_error(uid : int, eid : int, error : str) -> Dict[str, Any]:
     # ExecutionError(Error)
     results = make_error(eid, error)
     return make_update(uid, 'ExecutionError', results)
@@ -392,7 +395,8 @@ def test_resp():
 
 
 def test_req():
-    parser = WSBLEParser()
+    pass
+    # parser = WSBLEParser()
 
     # parser.parse_req(make_GATTRead(1, TEST_MAC, TEST_UUID, 10))
     # parser.parse_req(make_GATTWrite(1, TEST_MAC, TEST_UUID, 10))

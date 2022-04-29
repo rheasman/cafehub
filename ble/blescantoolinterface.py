@@ -53,3 +53,15 @@ class I_BLEScanTool(metaclass=abc.ABCMeta):
 
     Raises a BLEAlreadyScanning exception if a scan is already running.
     """
+
+  @abc.abstractmethod
+  def stopScanning(self) -> None:
+    """
+    Tell the scanner to stop scanning
+    """
+
+  @abc.abstractmethod
+  def addEntry(self, entry: BLEScanResult) -> None:
+    """
+    Add an entry to the seen list.
+    """

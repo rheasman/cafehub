@@ -6,7 +6,7 @@ import inspect
 import queue
 import threading
 import traceback
-from typing import Any, Awaitable, Callable, Coroutine, Deque, Generic, TypeVar, Union
+from typing import Any, Awaitable, Callable, Coroutine, Deque, Generic, Optional, TypeVar, Union
 
 from kivy.logger import Logger
 
@@ -37,7 +37,7 @@ class OpResult(Generic[T]):
         self.Result = r
 
 
-QOpMethod = Union[Callable[..., T], Coroutine[Any, Any, T]];
+QOpMethod = Union[Callable[..., T], Callable[..., Awaitable[T]]];
 class QOp(Generic[T]):
     def __init__(self, op : QOpMethod[T], *args : Any, **kwargs : Any):
         """
@@ -59,7 +59,7 @@ class QOp(Generic[T]):
         opr : OpResult[T] = OpResult()
         try:
             Logger.debug("BLE: do() %s" % (repr(self.Op)))
-            res : T = self.Op(*self.Args, **self.KwArgs, manager=manager)
+            res = self.Op(*self.Args, **self.KwArgs, manager=manager) # type: ignore
             if inspect.isawaitable(res):
                 # We might have been passed an async function or method, which means
                 # it hasn't actually been run yet. If so we need to run it in the
@@ -83,7 +83,7 @@ class QOp(Generic[T]):
         opr : OpResult[T] = OpResult()
 
         try:
-            res : T = self.Op(*self.Args, **self.KwArgs, manager=manager, reason=reason)
+            res = self.Op(*self.Args, **self.KwArgs, manager=manager, reason=reason) # type: ignore
             if inspect.isawaitable(res):
                 # We might have been passed an async function or method, which means
                 # it hasn't actually been run yet. If so we need to run it in the
@@ -289,7 +289,7 @@ class ContextConverter(metaclass=abc.ABCMeta):
     """
 
     @abc.abstractmethod
-    def convert(self, callback : Union[Callable[..., T], None], *args : Any, **kwargs : Any) -> Callable[..., T]:
+    def convert(self, callback : Union[Callable[..., None], None]) -> Callable[..., None]:
         """
         Return a callback that calls the given callback in the correct context.
         """
@@ -321,6 +321,8 @@ def exceptionCatcherForAsyncDecorator(functowrap: Callable[..., Awaitable[Any]])
     return deco
 
 
+AsyncFuncType = Callable[..., Coroutine[Any, Any, T]]
+
 # def thread_with_callback(convertername):
 #     """
 #     Make a decorator that converts a synchronous method into one
@@ -350,7 +352,7 @@ def exceptionCatcherForAsyncDecorator(functowrap: Callable[..., Awaitable[Any]])
 #             op = QOp(method, *args, **kwargs, callback=convertedcallback)
 #             self.QOpManager.addFIFOOp(op)
 
-def wrap_into_QOp(actualmethod : Callable[..., T]) -> Callable[[Callable[..., Any]], Callable[..., T]]:
+def wrap_into_QOp(actualmethod : Callable[..., Union[Awaitable[T], T]]) -> Callable[[Callable[..., Any]], Callable[..., T]]:
     """
     Wraps an existing method into a method
     that runs on a background QOp queue
@@ -358,16 +360,16 @@ def wrap_into_QOp(actualmethod : Callable[..., T]) -> Callable[[Callable[..., An
 
     # def decorator(newmethod : Callable[P, None]) -> Callable[P, T]:
 
-    def decorator(newmethod : Callable[..., Any]) -> Callable[..., T]:
-        # print("wiQ: decorator: ", actualmethod, newmethod)
+    def decorator(wrappedmethod : Callable[..., Any]) -> Callable[..., T]:
+        # print("wiQ: decorator: ", actualmethod, wrappedmethod)
 
-        @functools.wraps(newmethod)  # newmethod is the decorated method
-        def newmethodwrapper(self : Any, *args : Any, **kwargs: Any) -> T:
+        @functools.wraps(wrappedmethod)  # wrappedmethod is the decorated method
+        def wrappedmethodwrapper(self : Any, *args : Any, **kwargs: Any) -> T:
 
-            newmethod(self, *args, **kwargs)
+            wrappedmethod(self, *args, **kwargs)
             res : queue.SimpleQueue[OpResult[T]] = queue.SimpleQueue()
 
-            # print("Wrapped", newmethod.__name__)
+            # print("Wrapped", wrappedmethod.__name__)
 
             def cb_wrapper(opr: OpResult[T]):
                 res.put(opr, block=False)
@@ -384,16 +386,65 @@ def wrap_into_QOp(actualmethod : Callable[..., T]) -> Callable[[Callable[..., An
 
             return r.getResult()
 
-        return newmethodwrapper  # Newmethodwrapper replaces newmethod
+        return wrappedmethodwrapper  # wrappedmethodwrapper replaces wrappedmethod
 
     return decorator  # decorator is the function that is called with a method to be replaced
     # wrap_into_qop is the function call used to pass any decorator parameters
 
-
-def async_wrap_async_into_QOp(actualmethod):
+def async_wrap_sync_into_QOp(actualmethod : Callable[..., T]) -> Callable[ [ AsyncFuncType[Optional[T]] ], AsyncFuncType[T] ] :
     """
-    Wraps an existing async method (newmethod) into a new async method (newmethodwrapper) that
-    runs another method (actualmethod) on a background QOp queue.
+    Wraps an existing async method (decomethod) into a new async method (decomethodwrapper) that
+    runs another sync method (actualmethod) on a background QOp queue.
+
+    To make it clear what is happening here:
+        Example :   @async_wrap_sync_into_QOp(_set_notify)
+                    async def async_set_notify(self, uuid, enable, callback) -> None:
+
+        "actualmethod" is the method passed to the decorator that we will be running instead. i.e. _set_notify
+        "decomethod" is the method being wrapped. i.e. async_set_notify
+
+        First, the "decomethod" being wrapped is run. This is basically so it can generate
+        log output or do anything that has to happen before an operation is queued.
+
+        Then a QOP is created and passed to the background thread that runs sync operations.
+        Then it waits for a result, and either times out, or returns the result.
+        The result is passed back via a callback which, in a threadsafe way, pushes the result
+        back to the wrapper.
+    """
+    def decorator(decomethod : AsyncFuncType[Optional[T]]) -> AsyncFuncType[T]:
+        # print("wiQ: decorator: ", actualmethod, decomethod)
+
+        @functools.wraps(decomethod)  # decomethod is the decorated method
+        async def decomethodwrapper(self : Any, *args : Any, **kwargs: Any) -> T:
+
+            await decomethod(self, *args, **kwargs)
+            res : queue.SimpleQueue[OpResult[T]] = queue.SimpleQueue()
+
+            # print("Wrapped", decomethod.__name__)
+
+            def cb_wrapper(opr: OpResult[T]):
+                res.put(opr, block=False)
+
+            op = QOp(actualmethod, self, *args, callback=cb_wrapper)
+            self.QOpExecutor.Manager.addFIFOOp(op)
+
+            try:
+                r = res.get(block=True, timeout=self.QOpTimeout)
+            except Empty:
+                raise BLEOperationTimedOut(
+                    "Issued %s returned no results in %s seconds" % (actualmethod.__name__, self.QOpTimeout)
+                )
+
+            return r.getResult()
+
+        return decomethodwrapper  # decomethodwrapper replaces decomethod
+
+    return decorator  # decorator is the function that is called with a method to be replaced
+
+def async_wrap_async_into_QOp(actualmethod : AsyncFuncType[T]) -> Callable[ [AsyncFuncType[Optional[T]]],  AsyncFuncType[T] ] :
+    """
+    Wraps an existing async method (decomethod) into a new async method (decomethodwrapper) that
+    runs another async method (actualmethod) on a background QOp queue.
 
     Oldmethod can be sync or async.
 
@@ -401,10 +452,10 @@ def async_wrap_async_into_QOp(actualmethod):
         Example :   @async_wrap_async_into_QOp(_set_notify)
                     async def async_set_notify(self, uuid, enable, callback) -> None:
 
-        "actualmethod" is the method passed to the decorator. i.e. _set_notify
-        "newmethod" is the method being wrapped. i.e. async_set_notify
+        "actualmethod" is the method passed to the decorator that we will be running instead. i.e. _set_notify
+        "decomethod" is the method being wrapped. i.e. async_set_notify
 
-        First, the "newmethod" being wrapped is run. This is basically so it can generate
+        First, the "decomethod" being wrapped is run. This is basically so it can generate
         log output or do anything that has to happen before an operation is queued.
 
         Then a QOP is created and passed to the background thread that runs async operations.
@@ -412,19 +463,18 @@ def async_wrap_async_into_QOp(actualmethod):
         The result is passed back via a callback which, in a threadsafe way, pushes the result
         back to the wrapper.
     """
+    def decorator(decomethod : AsyncFuncType[Optional[T]]) -> AsyncFuncType[T]:
 
-    def decorator(newmethod):
-
-        @functools.wraps(newmethod)  # newmethod is the decorated method
-        async def newmethodwrapper(self, *args) -> OpResult:
+        @functools.wraps(decomethod)  # decomethod is the decorated method
+        async def decomethodwrapper(self : Any, *args : Any, **kwargs : Any) -> T:
             try:
-                await newmethod(self, *args)
+                await decomethod(self, *args, **kwargs)
                 loop = asyncio.get_running_loop()
-                callfuture : asyncio.Future[OpResult] = loop.create_future()
+                callfuture : asyncio.Future[OpResult[T]] = loop.create_future()
 
                 # print("async_wrap_async_into_QOp thread: ", threading.current_thread().name)
 
-                def cb_wrapper(opr: OpResult) -> None:
+                def cb_wrapper(opr: OpResult[T]) -> None:
                     # Convert the callback from the QOp to the local thread
                     async def set_result():
                         callfuture.set_result(opr)
@@ -432,23 +482,23 @@ def async_wrap_async_into_QOp(actualmethod):
                     # print("cb_wrapper() thread: ", threading.current_thread().name)
                     asyncio.run_coroutine_threadsafe(set_result(), loop)
 
-                op = QOp(actualmethod, self, *args, callback=cb_wrapper)
+                op = QOp(actualmethod, self, *args, **kwargs, callback=cb_wrapper)
                 self.QOpExecutor.Manager.addFIFOOp(op)
 
                 try:
                     r = await asyncio.wait_for(callfuture, self.QOpTimeout)
                     # print("Finished waiting for future")
-                except asyncio.TimeoutError as e:
+                except asyncio.TimeoutError:
                     raise BLEOperationTimedOut(
                         "Issued %s returned no results in %s seconds" % (actualmethod.__name__, self.QOpTimeout))
 
-                return r
-            except Exception as e:
+                return r.getResult()
+            except Exception:
                 Logger.debug(
-                    "EXCEPTION: %s(): %s" % ("wrapper for %s" % (newmethod.__name__,), traceback.format_exc(),))
+                    "EXCEPTION: %s(): %s" % ("wrapper for %s" % (decomethod.__name__,), traceback.format_exc(),))
                 raise
 
-        return newmethodwrapper  # Newmethodwrapper replaces newmethod
+        return decomethodwrapper  # decomethodwrapper replaces newmethod
 
     return decorator  # decorator is the function that is called with a method to be replaced
-    # wrap_into_qop is the function call used to pass any decorator parameters
+    

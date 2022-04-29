@@ -146,7 +146,7 @@ class BLE(BLEInterface):
         if macaddress in self.GATTClients:
             return self.GATTClients[macaddress]
 
-        gc = GATTClient(macaddress, self.QOpExecutorFactory.makeExecutor(), self.ContextConverter)
+        gc = GATTClient(macaddress, self.QOpExecutorFactory.makeExecutor(), self.ContextConverter, self.AndroidContext)
 
         self.GATTClients[macaddress] = gc
         return gc

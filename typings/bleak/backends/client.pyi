@@ -53,5 +53,8 @@ class BaseBleakClient(abc.ABC):
     async def stop_notify(self, char_specifier: Union[BleakGATTCharacteristic, int, str, uuid.UUID]) -> None:
         ...
 
+    def is_connected(self) -> bool: ...
+
+
 class BleakClient(BaseBleakClient):
     pass

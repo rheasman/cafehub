@@ -12,3 +12,4 @@ else:
         # Linux
         Logger.info("BLE: Using Linux Bleak BLE stack")
         from ble.bleak.ble import BLE
+        from ble.bleak.gattclient import GATTClient

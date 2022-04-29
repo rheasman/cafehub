@@ -1,8 +1,13 @@
-from jnius import autoclass
+from abc import ABC, abstractmethod
 import logging
 import os
+import enum
 
+import typing
+from typing import Any
 from kivy.config import Config
+
+from kivy.uix.widget import Widget
 
 Config.set('graphics', 'maxfps', '10')
 
@@ -10,16 +15,11 @@ import kivy
 
 from kivy.app import App
 from kivy.lang import Builder
-from kivy.clock import Clock
 from kivy.utils import platform
-
-from jnius import autoclass
 
 from oscpy.client import OSCClient
 from oscpy.server import OSCThreadServer
 
-
-# kivy.require('2.0.0')
 
 from kivy.logger import Logger, LOG_LEVELS
 
@@ -47,7 +47,6 @@ Config.set('kivy', 'log_name', 'lastlog.txt')
 
 from kivy.app import App
 from kivy.lang.builder import Builder
-from kivy.clock import Clock
 
 # coding: utf8
 __version__ = '0.2'
@@ -58,34 +57,47 @@ SERVICE_NAME = u'{packagename}.Service{servicename}'.format(
     servicename=u'Bleservice'
 )
 
-Context = autoclass('android.content.Context')
-Intent = autoclass('android.content.Intent')
-PendingIntent = autoclass('android.app.PendingIntent')
-AndroidString = autoclass('java.lang.String')
-NotificationBuilder = autoclass('android.app.Notification$Builder')
-Action = autoclass('android.app.Notification$Action')
-PythonService = autoclass('org.kivy.android.PythonService')
-PythonActivity = autoclass('org.kivy.android.PythonActivity')
-BluetoothDevice = autoclass('android.bluetooth.BluetoothDevice')
-String = autoclass('java.lang.String')
-InvHandler = autoclass("org.jnius.NativeInvocationHandler")
-PowerManager = autoclass('android.os.PowerManager')
-BuildVersion = autoclass("android.os.Build$VERSION")
-Settings = autoclass('android.provider.Settings')
-Uri = autoclass('android.net.Uri')
+if platform == 'android':
+    from jnius import autoclass # type: ignore
+    from ble.android.androidtypes import *
+
+    Context : T_Context = autoclass('android.content.Context')
+    Intent : T_Intent = autoclass('android.content.Intent')
+    PendingIntent : T_PendingIntent = autoclass('android.app.PendingIntent')
+    AndroidString : T_Java_String = autoclass('java.lang.String')
+    NotificationBuilder : T_NotificationBuilder = autoclass('android.app.Notification$Builder')
+    Action : T_NotificationAction = autoclass('android.app.Notification$Action')
+    PythonService : T_PythonService = autoclass('org.kivy.android.PythonService')
+    PythonActivity : T_PythonActivity = autoclass('org.kivy.android.PythonActivity')
+    BluetoothDevice : T_BluetoothDevice = autoclass('android.bluetooth.BluetoothDevice')
+    String : T_Java_String = autoclass('java.lang.String')
+    InvHandler : T_Native_Invocation_Handler = autoclass("org.jnius.NativeInvocationHandler")
+    PowerManager : T_PowerManager = autoclass('android.os.PowerManager')
+    BuildVersion : T_BuildVersion = autoclass("android.os.Build$VERSION")
+    Settings : T_Settings = autoclass('android.provider.Settings')
+    Uri : T_Uri = autoclass('android.net.Uri')
+
+class Stacks(enum.Enum):
+    BLEAK   = 1
+    ANDROID = 2
+    UNKNOWN = 3
+
+Use_Stack = Stacks.UNKNOWN
+
+if platform in ('linux', 'linux2', 'macos', 'win'):
+    import services.bleakservice
+    Use_Stack=Stacks.BLEAK
+
+if platform == 'android':
+    Use_Stack=Stacks.ANDROID
+
+if Use_Stack == Stacks.UNKNOWN:
+    raise NotImplementedError("Unsupported platform")
+
 
 KV = '''
 BoxLayout:
     orientation: 'vertical'
-    BoxLayout:
-        size_hint_y: None
-        height: '120sp'
-        Button:
-            text: 'start service'
-            on_press: app.start_service()
-        Button:
-            text: 'stop service'
-            on_press: app.stop_service()
 
     ScrollView:
         Label:
@@ -98,103 +110,128 @@ BoxLayout:
         size_hint_y: None
         height: '120sp'
         Button:
-            text: 'ping'
-            on_press: app.send()
+            text: 'Stop & Exit'
+            font_size: 36
+            on_press: app.stop_service()
         Button:
             text: 'clear'
+            font_size: 36
             on_press: label.text = ''
         Label:
             id: date
+            font_size: 18
 
 '''
 
-class ClientServerApp(App):
-    def build(self):
+class ClientServerApp(App, ABC):
+    """
+    The parts of the app that can run on any device
+    """
+    def build(self) -> Widget :
         self.service = None
 
         self.server = server = OSCThreadServer()
         server.listen(
             address='localhost',
-            port=3002,
+            port=4002,
             default=True,
         )
 
+        # /message will be used to display debug info
         server.bind(b'/message', self.display_message)
+
+        # /date is updated by the other side once a second
+        # so you can tell that it's still running.
         server.bind(b'/date', self.date)
 
-        self.client = OSCClient(b'localhost', 3000)
+        self.client = OSCClient(b'localhost', 4000)
         self.root = Builder.load_string(KV)
         return self.root
-    
+
+    @abstractmethod
     def on_start(self):
-        Logger.debug("Main: SDK_INT: %s" % (BuildVersion.SDK_INT,))
-        
-        mActivity = autoclass(u'org.kivy.android.PythonActivity').mActivity
-        pm = mActivity.getSystemService(Context.POWER_SERVICE)
-        wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, 'TAG')
+        pass
 
-        wl.acquire()
+    @abstractmethod
+    def start_service(self):
+        pass
 
-        if BuildVersion.SDK_INT >= 23: # Build.VERSION_CODES.M) {
-            intent = Intent()
-            packageName = u"org.decentespresso.dedebug"
-            if not pm.isIgnoringBatteryOptimizations(packageName):
-                intent.setAction(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
-                intent.setData(Uri.parse("package:" + packageName))
-                mActivity.startActivity(intent)
-        self.start_service()
+    @abstractmethod
+    def stop_service(self):
+        pass
+
+    def send(self, *args : Any):
+        self.client.send_message(b'/ping', [])
+
+    def display_message(self, message : bytes):
+        if self.root:
+            self.root.ids.label.text += '{}\n'.format(message.decode('utf8'))  # type: ignore
+
+    def date(self, message : bytes):
+        if self.root:
+            self.root.ids.date.text = message.decode('utf8')  # type: ignore
+
+class ClientServerAndroidApp(ClientServerApp):
+    """
+    The parts of the app that are Android specific
+    """
+    def on_start(self):
+        if platform == 'android':
+            Logger.debug("Main: SDK_INT: %s" % (BuildVersion.SDK_INT,))
+            pa : T_PythonActivity = autoclass(u'org.kivy.android.PythonActivity')
+            mActivity : T_Activity = pa.mActivity
+            pm : T_PowerManager = typing.cast(T_PowerManager, mActivity.getSystemService(Context.POWER_SERVICE))
+            wl : T_PowerManager.WakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, 'CafeHub:BLEProxy')
+
+            wl.acquire()
+
+            if BuildVersion.SDK_INT >= 23: # Build.VERSION_CODES.M) {
+                intent = Intent()
+                packageName = u"org.decentespresso.dedebug"
+                if not pm.isIgnoringBatteryOptimizations(packageName):
+                    intent.setAction(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                    intent.setData(Uri.parse("package:" + packageName))
+                    mActivity.startActivity(intent)
+            
+            self.start_service()
 
     def start_service(self):
         if platform == 'android':
-
-            service = autoclass(SERVICE_NAME)
-            self.mActivity = autoclass(u'org.kivy.android.PythonActivity').mActivity
+            service : T_BLEService = autoclass(SERVICE_NAME)
+            pa : T_PythonActivity = autoclass(u'org.kivy.android.PythonActivity')
+            self.mActivity : T_Activity = pa.mActivity
             argument = ''
 
-            if BuildVersion.SDK_INT > 26: # VERSION_CODES.O
-                service.startForegroundService(self.mActivity, argument)
-            else:
-                service.start(self.mActivity, argument)
-            self.service = service
+            service.start(self.mActivity, argument)
+            self.androidservice = service
 
-        elif platform in ('linux', 'linux2', 'macos', 'win'):
-            from runpy import run_path
-            from threading import Thread
-            self.service = Thread(
-                target=run_path,
-                args=['service/service.py'],
-                kwargs={'run_name': '__main__'},
-                daemon=True
-            )
+    def stop_service(self):
+        if self.androidservice:
+            self.client.send_message(b'/shutdown', [])
+            self.stop()
+
+
+class ClientServerBleakApp(ClientServerApp):
+    """
+    The parts of the app that are Bleak specific
+    """
+    def on_start(self):
+        self.start_service()
+
+    def start_service(self):
+        if not self.service:
+            self.service = services.bleakservice.GenericServer()
             self.service.start()
-        else:
-            raise NotImplementedError(
-                "service start not implemented on this platform"
-            )
 
     def stop_service(self):
         if self.service:
-            if platform == "android":
-                self.service.stop(self.mActivity)
-            elif platform in ('linux', 'linux2', 'macos', 'win'):
-                self.service.stop()
-            else:
-                raise NotImplementedError(
-                    "service start not implemented on this platform"
-                )
+            self.service.stop()
             self.service = None
-
-    def send(self, *args):
-        self.client.send_message(b'/ping', [])
-
-    def display_message(self, message):
-        if self.root:
-            self.root.ids.label.text += '{}\n'.format(message.decode('utf8'))
-
-    def date(self, message):
-        if self.root:
-            self.root.ids.date.text = message.decode('utf8')
+            self.stop()
 
 
 if __name__ == '__main__':
-    ClientServerApp().run()
+    if Use_Stack == Stacks.ANDROID:
+        ClientServerAndroidApp().run()
+    elif Use_Stack == Stacks.BLEAK:
+        ClientServerBleakApp().run()

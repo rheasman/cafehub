@@ -1,14 +1,14 @@
 import time
 from kivy.logger import Logger
 import threading
-from typing import Any, Callable, List, Tuple, Union
+from typing import Any, Callable, List, Optional, Tuple, Union
 
-from jnius import autoclass
+from jnius import autoclass # type: ignore
 from ble.android.androidtypes import T_BluetoothAdapter, T_BluetoothGatt, T_BluetoothGattCallbackImpl, T_BluetoothGattCharacteristic, T_BluetoothGattDescriptor, T_Context, T_Java_UUID, T_PythonActivity 
 
 from ble.android.pybluetoothgattcallback import AndroidGATTStatus, PyBluetoothGattCallback
 from ble.bleexceptions import *
-from ble.bleops import ContextConverter, CountingSemaphore, OpResult, QOp, QOpExecutor, QOpManager, async_wrap_async_into_QOp, synchronized_with_lock, wrap_into_QOp
+from ble.bleops import ContextConverter, CountingSemaphore, OpResult, QOp, QOpExecutor, QOpManager, async_wrap_sync_into_QOp, synchronized_with_lock, wrap_into_QOp
 from ble.gattclientinterface import GATTClientInterface, GATTCState
 from ble.uuidtype import CHAR_UUID, DESC_UUID
 
@@ -52,7 +52,7 @@ class GATTClient(GATTClientInterface):
 
     """
 
-    def __init__(self, macaddress: str, qopexecutor: QOpExecutor, contextconverter: ContextConverter, androidcontext : T_Context = None):
+    def __init__(self, macaddress: str, qopexecutor: QOpExecutor, contextconverter: ContextConverter, androidcontext : T_Context):
         Logger.debug("ble.android.GATTClient.__init__(%s, %s, %s, %s)" % (macaddress, qopexecutor, contextconverter, androidcontext))
         self.MAC = macaddress
         self.AndroidContext = androidcontext
@@ -259,7 +259,7 @@ class GATTClient(GATTClientInterface):
         # stack. Not entirely sure how to fix it properly.
 
         Logger.debug("BLE: Issuing android connect")
-        self.BluetoothGatt : Union[T_BluetoothGatt, None] = self.BluetoothDevice.connectGatt(self.AndroidContext, False, self.JavaGATTCallback)
+        self.BluetoothGatt : Optional[T_BluetoothGatt] = self.BluetoothDevice.connectGatt(self.AndroidContext, False, self.JavaGATTCallback)
 
         if not self.BluetoothGatt:
             Logger.debug("No self.BluetoothGatt")
@@ -299,7 +299,7 @@ class GATTClient(GATTClientInterface):
 
         return result
 
-    def _disconnect(self, manager: Union[QOpManager, None] = None, reason: Union[str, None] = None) -> None:
+    def _disconnect(self, manager: Union[QOpManager, None] = None, reason: Union[str, None] = None) -> GATTCState:
         Logger.debug("BLE: _disconnect(manager=%s, reason=%s)" % (manager, reason))
         if reason is not None:
             # Reason being set means we are being asked to cancel
@@ -319,6 +319,7 @@ class GATTClient(GATTClientInterface):
         # references to it, it gets garbage collected and we win!
 
         self.BluetoothGatt = None
+        return GATTCState.DISCONNECTED
 
 
 
@@ -376,8 +377,11 @@ class GATTClient(GATTClientInterface):
         # Logger.debug("BLE: known characteristics: %s" % (self.Characteristics,))
         char = self.Characteristics[uuid.AsString]
         char.setValue(data)
-        # char.setWriteType(char.WRITE_TYPE_DEFAULT)
-        char.setWriteType(char.WRITE_TYPE_NO_RESPONSE)
+        if requireresponse:
+            char.setWriteType(char.WRITE_TYPE_DEFAULT)
+        else:
+            char.setWriteType(char.WRITE_TYPE_NO_RESPONSE)
+
         issued = self.BluetoothGatt.writeCharacteristic(char)
 
         if issued:
@@ -446,21 +450,28 @@ class GATTClient(GATTClientInterface):
 
     # *** Async interface
 
-    @async_wrap_async_into_QOp(_connect)
+    @async_wrap_sync_into_QOp(_connect)
     async def async_connect(self):
         """
         Connect
         """
         Logger.debug("BLE: async_connect(%s)" % (self.MAC,))
 
-    @async_wrap_async_into_QOp(_char_read)
+    @async_wrap_sync_into_QOp(_disconnect)
+    async def async_disconnect(self):
+        """
+        Connect
+        """
+        Logger.debug("BLE: async_disconnect(%s)" % (self.MAC,))
+
+    @async_wrap_sync_into_QOp(_char_read)
     async def async_char_read(self, uuid : CHAR_UUID):
         """
         Write a characteristic in a background thread and return result when it is done.
         """
         Logger.debug("BLE: async_char_read(%s)" % (uuid,))
 
-    @async_wrap_async_into_QOp(_char_write)
+    @async_wrap_sync_into_QOp(_char_write)
     async def async_char_write(self, uuid: CHAR_UUID, data : bytes, requireresponse : bool):
         """
         Write a characteristic in a background thread and return result
@@ -513,13 +524,13 @@ class GATTClient(GATTClientInterface):
     def callback_char_read(self, uuid: CHAR_UUID, callback : Callable[ [OpResult[bytes]], None ]):
         """
         Read a characteristic in a background thread and call back with
-        an OpResult, which will contain a bytearray.
+        an OpResult, which will contain a 'bytes' object.
         """
         Logger.debug("BLE: callback_char_read(%s, %s)" % (uuid, callback))
         op = QOp(self._char_read, uuid, callback=self.CBConverter.convert(callback))
         self.QOpExecutor.Manager.addFIFOOp(op)
 
-    def callback_char_write(self, uuid: CHAR_UUID, data : bytes, requireresponse : bool, callback : Union[ Callable[[OpResult[None]], None], None ] = None):
+    def callback_char_write(self, uuid: CHAR_UUID, data : bytes, requireresponse : bool, callback : Optional[ Callable[[OpResult[None]], None]] = None):
         """
         Write a characteristic in a background thread and call back with
         an OpResult.

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import enum
-from typing import Callable, List, Union
+from typing import Callable, List, Optional
 from ble.android.androidtypes import T_Context
 
 from ble.bleops import ContextConverter, OpResult, QOpManager
@@ -54,7 +54,7 @@ class GATTClientInterface(ABC):
     """
 
     @abstractmethod
-    def __init__(self, macaddress: str, qopmanager: QOpManager, contextconverter: ContextConverter, androidcontext : T_Context = None):
+    def __init__(self, macaddress: str, qopmanager: QOpManager, contextconverter: ContextConverter, androidcontext : Optional[T_Context] = None):
         """
         Create an object to talk to a GATT Server. Will not actually do anything
         until connect is called.
@@ -82,18 +82,19 @@ class GATTClientInterface(ABC):
         """
 
     @abstractmethod
-    async def async_connect(self):
+    async def async_connect(self) -> GATTCState:
         """
-        Connect -- returns QOPResult containing GATTCState
+        Connect
         """
-
-    async def async_disconnect(self):
+    
+    @abstractmethod
+    async def async_disconnect(self)  -> GATTCState:
         """
-        Disconnect -- returns QOPResult containing GATTCState
+        Disconnect
         """
 
     @abstractmethod
-    async def async_char_read(self, uuid : CHAR_UUID):
+    async def async_char_read(self, uuid : CHAR_UUID) -> bytes:
         """
         Write a characteristic in a background thread and return result when it is done.
         """
@@ -113,7 +114,7 @@ class GATTClientInterface(ABC):
         """
 
     @abstractmethod
-    def disconnect(self) -> None:
+    def disconnect(self) -> GATTCState:
         """
         Blocking disconnect
         """
@@ -154,11 +155,11 @@ class GATTClientInterface(ABC):
     def callback_char_read(self, uuid : CHAR_UUID, callback : Callable[ [OpResult[bytes]], None ]):
         """
         Read a characteristic in a background thread and call back with
-        an OpResult, which will contain a bytearray.
+        an OpResult, which will contain a 'bytes' object.
         """
 
     @abstractmethod
-    def callback_char_write(self, uuid : CHAR_UUID, data : bytes, requireresponse : bool, callback: Union[ Callable[[OpResult[None]], None], None ] = None):
+    def callback_char_write(self, uuid : CHAR_UUID, data : bytes, requireresponse : bool, callback: Optional[ Callable[[OpResult[None]], None]] = None):
         """
         Write a characteristic in a background thread and call back with
         an OpResult.

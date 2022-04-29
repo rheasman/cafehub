@@ -8,6 +8,10 @@ Utils
 
 The Utils module p'''
 __all__ = ('intersection', 'difference', 'strtotuple', 'get_color_from_hex', 'get_hex_from_color', 'get_random_color', 'is_color_transparent', 'hex_colormap', 'colormap', 'boundary', 'deprecated', 'SafeList', 'interpolate', 'QueryDict', 'platform', 'escape_markup', 'reify', 'rgba', 'pi_version')
+from typing import Union
+from typing_extensions import Literal
+
+
 def boundary(value, minvalue, maxvalue):
     '''Limit a value between a minvalue'''
     ...
@@ -59,6 +63,10 @@ class SafeList(list):
     '''List with a clear() method.
 
    '''
+    @deprecated
+    def __init__(self, *args, **kwargs) -> None:
+        ...
+    
     def clear(self): # -> None:
         ...
     
@@ -82,7 +90,8 @@ def format_bytes_to_human(size, precision=...): # -> str | None:
     '''Format a byte value to a human r'''
     ...
 
-platform = ...
+platform : Literal['win', 'linux', 'android', 'macosx', 'unknown']
+
 def escape_markup(text):
     '''
     Escape markup characters fo'''

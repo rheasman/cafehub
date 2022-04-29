@@ -1,8 +1,8 @@
 from kivy.logger import Logger
-from jnius import PythonJavaClass, java_method # type: ignore
+from jnius import PythonJavaClass, java_method
 from ble.android.androidtypes import T_JavaListOf, T_ScanResult
-from ble.android.blescanner import BLEScanTool  # type: ignore
 from ble.blescanresult import BLEScanResult
+from ble.blescantoolinterface import I_BLEScanTool
 
 class PyScanCallback(PythonJavaClass):
   """
@@ -21,6 +21,11 @@ class PyScanCallback(PythonJavaClass):
   """
   __javainterfaces__ = ["org/decentespresso/dedebug/ScanCallbackImpl$IScanCallback"]
   __javacontext__ = 'app'  # Use the app class resolver, not the system resolver.
+
+  SCAN_FAILED_ALREADY_STARTED = 1
+  SCAN_FAILED_APPLICATION_REGISTRATION_FAILED = 2
+  SCAN_FAILED_FEATURE_UNSUPPORTED = 4
+  SCAN_FAILED_INTERNAL_ERROR = 3
 
   @java_method('(Ljava/util/List;)V')
   def onBatchScanResults(self, srlist : T_JavaListOf[T_ScanResult]):
@@ -44,7 +49,10 @@ class PyScanCallback(PythonJavaClass):
 
     macaddress = result.device.getAddress()
     uuids = record.getServiceUuids()
-    uuids = [x.toString() for x in record.getServiceUuids().toArray()]
+    if uuids is not None:
+      uuids = [x.toString() for x in uuids.toArray()]
+    else:
+      uuids = []
     Logger.debug(f"BLE: onScanResult: DeviceName: {name}")
     Logger.debug(f"BLE: onScanResult: Device MAC: {macaddress}")
     Logger.debug(f"BLE: onScanResult: UUIDs: {uuids}")
@@ -52,9 +60,9 @@ class PyScanCallback(PythonJavaClass):
     res = BLEScanResult(macaddress, name, uuids, result.getDevice(), record)
 
     # 0000ffff-0000-1000-8000-00805f9b34fb
-    self.Parent._addEntry(res)
+    self.Parent.addEntry(res)
 
-  def setParent(self, parent: BLEScanTool):
+  def setParent(self, parent: I_BLEScanTool):
     """
     At some point pyjnius became unable to find classes if not run in the main thread.
     This is a problem, because we want to run this in a background thread.

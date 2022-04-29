@@ -1,13 +1,15 @@
 import functools
-import string
 import threading
 import traceback
+import logging
 from time import sleep
+from typing import Callable, Optional, Set, TypeVar
 
 from ble.ble import BLE
 from ble.bleexceptions import BLEException, UnknownException
 from ble.bleops import ContextConverter, QOpExecutorFactory, synchronized_with_lock
 from ble.uuidtype import CHAR_UUID
+from websocket_server.websocket_server import T_WebsocketClient
 from wsserver.jsondesc import *
 
 """
@@ -16,24 +18,24 @@ Implementation of a WebSocket JSON BLE API.
 See jsondesc.py to see a description of the websocket JSON API and message types.
 """
 
-import logging
 from websocket_server import WebsocketServer
 
-
+T = TypeVar('T')
 class NoOpConverter(ContextConverter):
     """
     This converter doesn't need to do anything
     """
 
-    def convert(self, callback, *args, **kwargs):
-        def wrapper(result):
+    def convert(self, callback : Optional[Callable[..., None]]) -> Callable[..., None]:
+        def wrapper(*args : Any, **kwargs : Any):
             print("Wrapped")
-            callback(result)
+            if callback is not None:
+                callback(*args, **kwargs)
 
         return wrapper
 
-
-def catch_exceptions_and_send_as_JSON(oldmethod):
+def catch_exceptions_and_send_as_JSON(oldmethod : Callable[..., T]) -> Callable[..., Optional[T]]:
+    
     """
     Wraps an existing method so that if an exception occurs, the results
     is sent as a JSON error update. This removes a lot of boilerplate in the
@@ -53,9 +55,9 @@ def catch_exceptions_and_send_as_JSON(oldmethod):
     # functools.wraps() just copies the name etc. of the wrapped function over the wrapper name.
     # It's cosmetic and only helps when inspecting method names, using help() or dir(), etc.
     @functools.wraps(oldmethod)  # oldmethod is the decorated method
-    def wrapper(self, client, uid, *args):
+    def wrapper(self : SyncWSServer, client: T_WebsocketClient, uid : int, *args : Any, **kwargs : Any):
         try:
-            oldmethod(self, client, uid, *args)
+            return oldmethod(self, client , uid, *args, **kwargs)
         except BLEException as pe:
             result = make_execution_error(uid, pe.EID, getattr(pe, 'message', repr(pe)))
             self.sendJSON(client, result)
@@ -75,41 +77,41 @@ class SyncWSServer:
     Async server was not playing well with Kivy. There are timeouts and things I
     can't interrupt.
     """
-    def __init__(self, logger, androidcontext = None):
+    def __init__(self, logger : logging.Logger, androidcontext : Any = None):
         self.Logger = logger
-        self.SeenDevices = set()
+        self.SeenDevices : set[str] = set()
         self.BLE = BLE(QOpExecutorFactory(), NoOpConverter(), androidcontext = androidcontext)
         self.BLE.requestBLEEnableIfRequired()
         self.Parser = WSBLEParser()
         self.run()
         self.Stop = False
         self.ConnLock = threading.RLock()
-        self.ConnSet = set()
+        self.ConnSet : set[int] = set()
 
     @synchronized_with_lock("ConnLock")
-    def addConn(self, clientid):
+    def addConn(self, clientid : int) -> None:
         self.ConnSet.add(clientid)
 
     @synchronized_with_lock("ConnLock")
-    def remConn(self, clientid):
+    def remConn(self, clientid : int) -> None:
         self.ConnSet.discard(clientid)
 
     @synchronized_with_lock("ConnLock")
-    def getConnSet(self):
+    def getConnSet(self) -> Set[int]:
         return self.ConnSet
 
-    def shutdown(self):
+    def shutdown(self) -> None:
         self.Stop = True
         self.BLE.on_stop()
         if self.Server:
             self.Server.shutdown_gracefully()
 
     @catch_exceptions_and_send_as_JSON
-    def do_scan(self, client, uid, timeout):
+    def do_scan(self, client: T_WebsocketClient, uid : int, timeout : float):
         """
         Scan for timeout seconds. Check for results 4 times per second and pass them on.
         """
-        self.SeenDevices = set()
+        self.SeenDevices : set[str] = set()
         self.BLE.scanForDevices(timeout)
         st = self.BLE.getBLEScanTool()
         if st is not None:
@@ -135,7 +137,7 @@ class SyncWSServer:
         self.sendJSON(client, update)
 
     @catch_exceptions_and_send_as_JSON
-    def do_connect(self, client, uid, mac):
+    def do_connect(self, client: T_WebsocketClient, uid : int, mac : str):
         """
         Connect to GATT Client
         """
@@ -154,7 +156,7 @@ class SyncWSServer:
         self.sendJSON(client, update)
 
     @catch_exceptions_and_send_as_JSON
-    def do_set_notify(self, client, uid : int, mac : str, uuid : CHAR_UUID, enable : bool):
+    def do_set_notify(self, client: T_WebsocketClient, uid : int, mac : str, uuid : CHAR_UUID, enable : bool) -> None:
         def sendcallback(characteristic : CHAR_UUID, data : bytes):
             results = {
                 "MAC"  : mac,
@@ -170,7 +172,7 @@ class SyncWSServer:
         self.sendJSON(client, resp)
 
     @catch_exceptions_and_send_as_JSON
-    def do_disconnect(self, client, uid, mac):
+    def do_disconnect(self, client: T_WebsocketClient, uid : int, mac : str) -> None:
         """
         Disconnect GATT Client
         """
@@ -180,7 +182,7 @@ class SyncWSServer:
         self.sendJSON(client, update)
 
     @catch_exceptions_and_send_as_JSON
-    def do_read(self, client, uid, mac, char : CHAR_UUID, rlen):
+    def do_read(self, client: T_WebsocketClient, uid : int, mac : str, char : CHAR_UUID, rlen : int) -> None:
         """
         Read 'rlen' bytes from 'mac' characteristic 'char'.
         """
@@ -191,17 +193,17 @@ class SyncWSServer:
         self.sendJSON(client, resp)
 
     @catch_exceptions_and_send_as_JSON
-    def do_write(self, client, uid : int, mac : str, char : CHAR_UUID, wdata : bytes, requireresponse : bool):
+    def do_write(self, client: T_WebsocketClient, uid : int, mac : str, char : CHAR_UUID, wdata : bytes, requireresponse : bool):
         """
         Write 'wdata' to 'mac' characteristic 'char'.
         """
         gc = self.BLE.getGATTClient(mac)
         decodedata = base64.b64decode(wdata)
-        res = gc.char_write(char, decodedata, requireresponse)
+        gc.char_write(char, decodedata, requireresponse)
         resp = make_resp(uid, {'eid' : 0, 'errmsg' : ''}, {})
         self.sendJSON(client, resp)
 
-    def _cb_NewClient(self, client, server):
+    def _cb_NewClient(self, client: T_WebsocketClient, server : WebsocketServer):
         """
         Called when a new client connects
         """
@@ -214,7 +216,7 @@ class SyncWSServer:
         self.addConn(client['id'])
         self.Logger.debug("SyncWS: new client: %s" % client)
 
-    def _cb_ClientLeft(self, client, server):
+    def _cb_ClientLeft(self, client: T_WebsocketClient, server : WebsocketServer):
         """
         Called when a client leaves.
 
@@ -242,7 +244,7 @@ class SyncWSServer:
 
         self.Logger.debug("SyncWS: client left: %s" % client)
 
-    def _cb_MessageReceived(self, client, server, message : str):
+    def _cb_MessageReceived(self, client: T_WebsocketClient, server : WebsocketServer, message : str):
         """
         Called when a client sends information
 
@@ -256,24 +258,24 @@ class SyncWSServer:
         # noinspection PyBroadException
         try:
             cmd = json.loads(message)
-            self.parseCommand(client, cmd)
+            cmd = self.parseCommand(client, cmd)
         except json.decoder.JSONDecodeError as de:
             result = make_execution_error(0, UnknownException.EID, repr(de))
         except ParseException as pe:
-            uid = cmd.get('uid', 0)
-            result = make_execution_error(uid, UnknownException.EID, getattr(pe, 'message', repr(pe)))
+            uid = cmd.get('uid', 0) # type: ignore
+            result = make_execution_error(uid, UnknownException.EID, getattr(pe, 'message', repr(pe))) # type: ignore
         except:
-            uid = cmd.get('uid', 0)
+            uid = cmd.get('uid', 0) # type: ignore
             tb = traceback.format_exc()
-            result = make_execution_error(uid, UnknownException.EID, repr(tb))
+            result = make_execution_error(uid, UnknownException.EID, repr(tb)) # type: ignore
 
         if result is not None:
             self.sendJSON(client, result)
 
-    def parseCommand(self, client, cmd):
+    def parseCommand(self, client: T_WebsocketClient, cmd : Dict[str, Any]) -> Dict[str, Any]:
+        cmd = self.Parser.parse_obj(cmd)
         params = cmd['params']
         uid = cmd['id']
-        self.Parser.parse_obj(cmd)
         if cmd['type'] == 'REQ':
             if cmd['command'] == 'GATTWrite':
                 self.do_write(client, uid, params['MAC'], CHAR_UUID(params['Char']), params['Data'], params['RR'])
@@ -293,12 +295,12 @@ class SyncWSServer:
             if cmd['command'] == 'GATTSetNotify':
                 self.do_set_notify(client, uid, params['MAC'], CHAR_UUID(params['Char']), params['Enable'])
 
-        return None
+        return cmd
 
     # Do I need a lock here? It would make sense that Server.send_message is multithreaded, as
     # server is multithreaded.
     # Okay, checking the source for send_message, it runs with a lock, so we're good.
-    def sendJSON(self, client, ob):
+    def sendJSON(self, client: T_WebsocketClient, ob : Dict[str, Any]):
         """
         Internal. Send message to the client
         """
