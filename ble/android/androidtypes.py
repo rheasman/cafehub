@@ -1,8 +1,6 @@
 from typing import Any, Generic, List, Optional, Protocol, TypeVar
 from xmlrpc.client import boolean
 
-from jnius import PythonJavaClass
-
 """
     NOTE: THIS ENTIRE FILE IS JUST TO KEEP THE TYPECHECKER HAPPY
 
@@ -66,7 +64,7 @@ class T_ScanCallback(T_JavaObject, Protocol):
 
 class T_ScanCallbackImpl(T_ScanCallback, Protocol):
     def __call__(self, *args: Any, **kwds: Any) -> 'T_ScanCallbackImpl': ...
-    def setImpl(self, impl: PythonJavaClass) -> None: ...
+    def setImpl(self, impl: T_PythonJavaClass) -> None: ...
 
 class T_BluetoothLeScanner(T_JavaObject, Protocol):
     def startScan(self, scancb : T_ScanCallback) -> None: ...    

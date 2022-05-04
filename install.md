@@ -40,4 +40,5 @@ pip3 install bleak
 pip3 install pydantic
 pip3 install websocket-server
 pip3 install jnius
+pip3 install pytest
 ```

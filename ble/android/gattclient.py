@@ -509,7 +509,7 @@ class GATTClient(GATTClientInterface):
         Synchronous write to device. Write occurs in a background thread,
         but the calling thread is made to wait until there is a result.
         """
-        Logger.debug("BLE: char_write(%s, %s, %s)" % (uuid,))
+        Logger.debug("BLE: char_write(%s, %s, %s)" % (uuid, data, requireresponse))
 
     @wrap_into_QOp(_desc_write)
     def descriptor_write(self, charuuid: CHAR_UUID, descid : DESC_UUID, data : bytes):

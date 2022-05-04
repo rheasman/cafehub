@@ -3,14 +3,19 @@ import threading
 import traceback
 import logging
 from time import sleep
-from typing import Callable, Optional, Set, TypeVar
+from typing import Callable, Optional, Set, Tuple, TypeVar, TypedDict
 
 from ble.ble import BLE
 from ble.bleexceptions import BLEException, UnknownException
 from ble.bleops import ContextConverter, QOpExecutorFactory, synchronized_with_lock
 from ble.uuidtype import CHAR_UUID
-from websocket_server.websocket_server import T_WebsocketClient
+from websocket_server.websocket_server import WebSocketHandler
 from wsserver.jsondesc import *
+
+class T_WebsocketClient(TypedDict):
+    id : int
+    handler : WebSocketHandler
+    address : Tuple[str, int]
 
 """
 Implementation of a WebSocket JSON BLE API.
@@ -55,7 +60,7 @@ def catch_exceptions_and_send_as_JSON(oldmethod : Callable[..., T]) -> Callable[
     # functools.wraps() just copies the name etc. of the wrapped function over the wrapper name.
     # It's cosmetic and only helps when inspecting method names, using help() or dir(), etc.
     @functools.wraps(oldmethod)  # oldmethod is the decorated method
-    def wrapper(self : SyncWSServer, client: T_WebsocketClient, uid : int, *args : Any, **kwargs : Any):
+    def wrapper(self : 'SyncWSServer', client: T_WebsocketClient, uid : int, *args : Any, **kwargs : Any):
         try:
             return oldmethod(self, client , uid, *args, **kwargs)
         except BLEException as pe:

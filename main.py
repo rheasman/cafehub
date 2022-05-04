@@ -94,6 +94,8 @@ if platform == 'android':
 if Use_Stack == Stacks.UNKNOWN:
     raise NotImplementedError("Unsupported platform")
 
+from httpserver import makecert
+
 
 KV = '''
 BoxLayout:
@@ -231,6 +233,7 @@ class ClientServerBleakApp(ClientServerApp):
 
 
 if __name__ == '__main__':
+    makecert.create_self_signed_cert('./')
     if Use_Stack == Stacks.ANDROID:
         ClientServerAndroidApp().run()
     elif Use_Stack == Stacks.BLEAK:
