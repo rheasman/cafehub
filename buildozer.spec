@@ -10,7 +10,7 @@ package.name = dedebug
 package.domain = org.decentespresso
 
 # (str) Source code where the main.py live
-source.dir = .
+source.dir = ./src
 
 # (list) Source files to include (let empty to include all the files)
 source.include_exts = java,py,png,jpg,kv,atlas
@@ -37,7 +37,7 @@ version = 0.1
 
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
-requirements = python3==3.8.12,hostpython3==3.8.12,kivy==2.1.0,pyjnius,websocket-server,pydantic,oscpy
+requirements = python3==3.8.12,hostpython3==3.8.12,kivy==2.1.0,pyjnius,websocket-server,oscpy,pydantic
 
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes
@@ -162,7 +162,7 @@ android.minapi = 21
 
 # (list) List of Java files to add to the android project (can be java or a
 # directory containing the files)
-android.add_src = ble/android,services
+android.add_src = src/ble/android,src/services
 
 #android.src = src
 

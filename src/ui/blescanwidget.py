@@ -1,5 +1,6 @@
-import kivy, os
-kivy.require('1.9.1')
+from typing import Any
+import kivy
+kivy.require('1.9.1')  # type: ignore
 
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.treeview import TreeView, TreeViewNode, TreeViewLabel
@@ -9,7 +10,7 @@ from kivy.logger import Logger
 from ble.blescanresult import BLEScanResult
 
 class BLEScanNode(BoxLayout, TreeViewNode):
-  def __init__(self, item: BLEScanResult, **kwargs):
+  def __init__(self, item: BLEScanResult, **kwargs : Any):
     super(BLEScanNode, self).__init__(**kwargs)
     self.orientation = 'horizontal'
     self.is_open = True
