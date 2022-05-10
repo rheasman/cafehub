@@ -9,6 +9,8 @@ from oscpy.server import OSCThreadServer
 from oscpy.client import OSCClient
 
 from kivy.logger import Logger, LOG_LEVELS
+from MsgHandler import MsgHandler
+from httpserver.httpserver import BackgroundThreadedHTTPServer
 Logger.setLevel(LOG_LEVELS["debug"])
 
 # class E(ExceptionHandler):
@@ -25,7 +27,7 @@ logging.Logger.manager.root = Logger  # type: ignore
 
 # Logger.debug("SYS:" + os.path.dirname(kivy.__file__))
 
-CLIENT = OSCClient('localhost', 4002)
+CLIENT = OSCClient('localhost', 4002, encoding="UTF-8")
 
 def ping():
     'answer to ping messages'
@@ -50,21 +52,35 @@ import wsserver.server
 class GenericServer:
     def __init__(self):
         self.WSServer : Optional[wsserver.server.SyncWSServer] = None
+        self.httpserver : Optional[BackgroundThreadedHTTPServer] = None
         self.OscServer = OSCThreadServer()
         self.OscServer.listen('localhost', port=4000, default=True)
         self.OscServer.bind(b'/ping', ping)
         self.OscServer.bind(b'/stop', self.stop)
 
         self.StopEvent = threading.Event()
-        self.thread = threading.Thread(target=self.dateserver, daemon=True)    
+        self.thread = threading.Thread(target=self.dateserver, daemon=True)   
+        Logger.addHandler(MsgHandler(oscclient=CLIENT))
+
         
     def start(self):
         if self.WSServer is None:
             self.WSServer = wsserver.server.SyncWSServer(Logger)
             self.thread.start()
 
+        if self.httpserver is None:
+            self.httpserver = BackgroundThreadedHTTPServer(5000, 3, "./webserverdata/test_app")
+            self.httpserver.start()
+
     def stop(self):
         Logger.debug("BleakService: Stopping server")
+        if self.WSServer:
+            self.WSServer.shutdown()
+
+        if self.httpserver:
+            self.httpserver.shutdown()
+            self.httpserver = None
+            
         self.StopEvent.set()
 
     def dateserver(self):

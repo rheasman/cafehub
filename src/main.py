@@ -2,12 +2,15 @@ from abc import ABC, abstractmethod
 import logging
 import os
 import enum
+import time
 
 import typing
 from typing import Any
 from kivy.config import Config
 
 from kivy.uix.widget import Widget
+
+from httpserver.httpserver import getlocalip
 
 Config.set('graphics', 'maxfps', '10')
 
@@ -99,6 +102,13 @@ KV = '''
 BoxLayout:
     orientation: 'vertical'
 
+    BoxLayout:
+        size_hint_y: None
+        height: '60sp'
+        Label:
+            id: ipaddr
+            font_size: 24
+
     ScrollView:
         Label:
             id: label
@@ -146,6 +156,7 @@ class ClientServerApp(App, ABC):
 
         self.client = OSCClient(b'localhost', 4000)
         self.root = Builder.load_string(KV)
+        self.root.ids.ipaddr.text = f"IP Address: {getlocalip()}"
         return self.root
 
     @abstractmethod

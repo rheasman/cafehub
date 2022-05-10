@@ -10,8 +10,10 @@ from oscpy.client import OSCClient
 from jnius import autoclass # type: ignore
 
 from kivy.logger import Logger, LOG_LEVELS
+from MsgHandler import MsgHandler
 
 from ble.android.androidtypes import T_BLEService, T_BluetoothDevice, T_Context, T_Drawable, T_Intent, T_Java_String, T_Native_Invocation_Handler, T_NotificationAction, T_NotificationBuilder, T_PendingIntent, T_PowerManager, T_PythonActivity, T_PythonService
+from httpserver.httpserver import BackgroundThreadedHTTPServer
 Logger.setLevel(LOG_LEVELS["debug"])
 
 # from kivy.base import ExceptionHandler, ExceptionManager
@@ -30,11 +32,12 @@ from kivy.logger import Logger
 # ExceptionManager.add_handler(E())
 
 # Uncomment this to allow all non-Kivy loggers to output
-# logging.Logger.manager.root = Logger  # type: ignore
+import logging
+logging.Logger.manager.root = Logger  # type: ignore
 
 # Logger.debug("SYS:" + os.path.dirname(kivy.__file__))
 
-CLIENT = OSCClient('localhost', 4002)
+CLIENT = OSCClient('localhost', 4002, encoding="UTF-8")
 
 Context : T_Context = autoclass('android.content.Context')
 Intent : T_Intent = autoclass('android.content.Intent')
@@ -116,12 +119,17 @@ if __name__ == '__main__':
 
     wl.acquire()
 
+    Logger.addHandler(MsgHandler(oscclient=CLIENT))
+
     import wsserver.server
     server = wsserver.server.SyncWSServer(Logger, PythonService.mService)
 
+    httpserver = BackgroundThreadedHTTPServer(5000, 3, "./webserverdata/test_app")
+    httpserver.start()
     try:
         while KeepRunning:
             sleep(1)
             send_date()
     finally:
         wl.release()
+        httpserver.shutdown()
