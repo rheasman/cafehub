@@ -63,3 +63,29 @@ cd src
 python3 main.py
 ```
 Connect to localhost:5000 to try the default test app.
+
+### Using CafeHub to serve files on Android
+
+If CafeHub finds an index.html file in /sdcard/CafeHub/web, it will serve that directory over HTTP instead of the test app compiled into the APK.
+
+I suggest installing the awesome [SimpleSSHD](http://www.galexander.org/software/simplesshd/) and using it to update files on your tablet.
+
+To do this I normally install the open source F-Droid app store APK using adb, and then search in there.
+
+**Setting up SimpleSSHD**
+
+If no key is set in SimpleSSHD, then it generates a one-time password every time there is a connection attempt, and you have to manually copy the key off the screen into the password prompt. To make things easier, I copy my public key as an authorized key, to SimpleSSHD:
+
+```
+scp -P 2222 id_rsa.pub ray@192.168.68.90:authorized_keys
+```
+
+SimpleSSHD doesn't care what username you use.
+
+Once this is done, in Linux, you can mount the directory on your tablet locally using:
+```
+sshfs ray@tab:/sdcard/ /home/ray/tabletfs/
+```
+Now you can simply treat the `tabletfs` directory as any other directory, and the files on the tablet will be updated as soon as they are changed locally.
+
+In the past, in Windows, I found [WinSCP](https://winscp.net/eng/index.php) to be a good program for copying files to SSH servers. I haven't used it in a while.
