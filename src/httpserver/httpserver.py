@@ -7,14 +7,13 @@ import os
 from os.path import (join, exists, abspath, isdir, split, splitdrive)
 from os import getcwd, curdir, pardir, fstat
 import threading
-import traceback
 from urllib.parse import quote, unquote
 from posixpath import normpath
-from io import BytesIO, StringIO
+from io import BytesIO
 import re
 import socket
 import errno
-from typing import BinaryIO, List, Optional, Union
+from typing import BinaryIO, List, Optional
 
 StrPath = str
 

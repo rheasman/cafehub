@@ -1,4 +1,5 @@
 'p4a example service using oscpy to communicate with main application.'
+import os
 from random import sample, randint
 from string import ascii_letters
 from time import localtime, asctime, sleep
@@ -10,7 +11,6 @@ from oscpy.client import OSCClient
 from jnius import autoclass # type: ignore
 
 from kivy.logger import Logger, LOG_LEVELS
-from MsgHandler import MsgHandler
 
 from ble.android.androidtypes import T_BLEService, T_BluetoothDevice, T_BuildVersion, T_Context, T_Drawable, T_Intent, T_Java_String, T_Native_Invocation_Handler, T_NotificationAction, T_NotificationBuilder, T_NotificationChannel, T_NotificationManager, T_PendingIntent, T_PowerManager, T_PythonActivity, T_PythonService
 from httpserver.httpserver import BackgroundThreadedHTTPServer
@@ -136,7 +136,10 @@ def shutdown(*args : Any):
     global KeepRunning
     KeepRunning = False
     PythonService.mService.stopSelf()
-    
+
+def show_message(oscclient: OSCClient, message : str):
+    oscclient.send_message(b"/message", [message])
+
 if __name__ == '__main__':
     SERVER = OSCThreadServer()
     SERVER.listen('localhost', port=4000, default=True)
@@ -155,12 +158,23 @@ if __name__ == '__main__':
 
     wl.acquire()
 
-    Logger.addHandler(MsgHandler(oscclient=CLIENT))
+    # I was showing all log messages, but it somehow makes the Android client crash, so
+    # disabling for now.
+    # Logger.addHandler(MsgHandler(oscclient=CLIENT))
 
     import wsserver.server
     server = wsserver.server.SyncWSServer(Logger, PythonService.mService)
 
-    httpserver = BackgroundThreadedHTTPServer(5000, 3, "./webserverdata/test_app")
+    web_path = "/sdcard/CafeHub/web"
+    if not os.path.exists(web_path + "/index.html"):
+        web_path = "./webserverdata/test_app"
+        Logger.info(f"Bleservice: No index.html found in /sdcard/CafeHub/web. Serving files from {web_path}")
+    else:
+        Logger.info(f"Bleservice: Found index.html in /sdcard/CafeHub/web. Serving files from {web_path}")
+
+    show_message(CLIENT, f"Serving files from {web_path}")
+
+    httpserver = BackgroundThreadedHTTPServer(5000, 3, web_path)
     httpserver.start()
     try:
         while KeepRunning:
