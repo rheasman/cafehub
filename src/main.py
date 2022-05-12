@@ -56,7 +56,7 @@ __version__ = '0.2'
 
 
 SERVICE_NAME = u'{packagename}.Service{servicename}'.format(
-    packagename=u'org.decentespresso.dedebug',
+    packagename=u'org.decentespresso.cafehub',
     servicename=u'Bleservice'
 )
 
@@ -186,9 +186,27 @@ class ClientServerAndroidApp(ClientServerApp):
     """
     The parts of the app that are Android specific
     """
+    def requestBLEEnableIfRequired(self) -> bool:
+        """
+        Asks the user to enable BLE if required.
+        Right now, has no way to tell if the user succeeded.
+        Requires receiving an activity result that seems to need setup in the
+        APK, which gets in the way of testing using kivy_launcher.
+
+        Returns True if a request was generated for the user. Check for Activy result.
+        Returns False if no request needed. Do nothing.
+        """
+        Logger.debug("requestBLEEnableIfRequired()")
+        BLEAdapterClass : T_BluetoothAdapter = autoclass('android.bluetooth.BluetoothAdapter')
+        enableBtIntent : T_Intent = Intent()
+        enableBtIntent.setAction(BLEAdapterClass.ACTION_REQUEST_ENABLE)
+        PythonActivity.mActivity.startActivityForResult(enableBtIntent, 0x1)
+        return True
+
     def on_start(self):
         if platform == 'android':
             Logger.debug("Main: SDK_INT: %s" % (BuildVersion.SDK_INT,))
+            self.requestBLEEnableIfRequired()
             pa : T_PythonActivity = autoclass(u'org.kivy.android.PythonActivity')
             mActivity : T_Activity = pa.mActivity
             pm : T_PowerManager = typing.cast(T_PowerManager, mActivity.getSystemService(Context.POWER_SERVICE))
@@ -198,7 +216,7 @@ class ClientServerAndroidApp(ClientServerApp):
 
             if BuildVersion.SDK_INT >= 23: # Build.VERSION_CODES.M) {
                 intent = Intent()
-                packageName = u"org.decentespresso.dedebug"
+                packageName = u"org.decentespresso.cafehub"
                 if not pm.isIgnoringBatteryOptimizations(packageName):
                     intent.setAction(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
                     intent.setData(Uri.parse("package:" + packageName))

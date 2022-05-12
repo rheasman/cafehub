@@ -57,7 +57,7 @@ class PyBluetoothGattCallback(PythonJavaClass):
     methods as the abstract class. Then we can implement the interface in
     Python, and pass it to the Java wrapper.
     """
-    __javainterfaces__ = ['org.decentespresso.dedebug.BluetoothGattCallbackImpl$Interface']
+    __javainterfaces__ = ['org.decentespresso.cafehub.BluetoothGattCallbackImpl$Interface']
     __javacontext__ = 'app'  # Use the app class resolver, not the system resolver.
 
     def __init__(self):

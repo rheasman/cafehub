@@ -23,7 +23,7 @@ from ble.uuidtype import CHAR_UUID, DESC_UUID
 # I'll see about getting pyjnius fixed, one way or another
 
 PythonActivity : T_PythonActivity = autoclass('org.kivy.android.PythonActivity')
-BluetoothGattCallbackImpl : T_BluetoothGattCallbackImpl = autoclass('org.decentespresso.dedebug.BluetoothGattCallbackImpl')
+BluetoothGattCallbackImpl : T_BluetoothGattCallbackImpl = autoclass('org.decentespresso.cafehub.BluetoothGattCallbackImpl')
 PyBLEGattCB = PyBluetoothGattCallback()
 BluetoothGattDescriptor : T_BluetoothGattDescriptor = autoclass("android.bluetooth.BluetoothGattDescriptor")
 BLE_UUID : T_Java_UUID = autoclass('java.util.UUID')

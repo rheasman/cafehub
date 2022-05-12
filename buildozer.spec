@@ -1,10 +1,10 @@
 [app]
 
 # (str) Title of your application
-title = DEDebug
+title = CafeHub
 
 # (str) Package name
-package.name = dedebug
+package.name = cafehub
 
 # (str) Package domain (needed for android/ios packaging)
 package.domain = org.decentespresso
@@ -94,6 +94,7 @@ android.presplash_color = teal
 #icon.adaptive_background.filename = %(source.dir)s/data/icon_bg.png
 
 # (list) Permissions
+
 android.permissions = INTERNET, ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION, BLUETOOTH, BLUETOOTH_ADMIN, WAKE_LOCK, FOREGROUND_SERVICE, REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
 
 

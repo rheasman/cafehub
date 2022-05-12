@@ -1,3 +1,3 @@
-title=DEDebug
+title=CafeHub
 author=Decent Espresso
 orientation=landscape

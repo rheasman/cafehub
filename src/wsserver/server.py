@@ -86,7 +86,11 @@ class SyncWSServer:
         self.Logger = logger
         self.SeenDevices : set[str] = set()
         self.BLE = BLE(QOpExecutorFactory(), NoOpConverter(), androidcontext = androidcontext)
-        self.BLE.requestBLEEnableIfRequired()
+
+        # Can't call this from a service. :-/
+        #   self.BLE.requestBLEEnableIfRequired()
+        # Copied the important bits into main.py instead()
+        
         self.Parser = WSBLEParser()
         self.run()
         self.Stop = False

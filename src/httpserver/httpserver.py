@@ -7,6 +7,7 @@ import os
 from os.path import (join, exists, abspath, isdir, split, splitdrive)
 from os import getcwd, curdir, pardir, fstat
 import threading
+import traceback
 from urllib.parse import quote, unquote
 from posixpath import normpath
 from io import BytesIO, StringIO
@@ -241,11 +242,16 @@ def getlocalip():
     See https://stackoverflow.com/questions/166506/finding-local-ip-addresses-using-pythons-stdlib/28950776#28950776
     The connect on the socket is a no-op. UDP sockets don't have a connect.
     """
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.connect(("8.8.8.8", 80))
-    ip = s.getsockname()[0]
-    s.close()
-    return ip
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except OSError as e:
+        logging.info("Exception while trying to determine IP address: %s" % (repr(e)))
+        return "localhost"
+
 
 def get_server(port : int = 8000, attempts : int = 0, serve_path : Optional[StrPath] = None) -> Optional[http.server.ThreadingHTTPServer]:
     Handler = partial(RequestHandler, directory=serve_path)

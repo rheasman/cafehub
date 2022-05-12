@@ -91,6 +91,7 @@ class T_Intent(T_JavaObject, Protocol):
 
 class T_Context(T_JavaObject, Protocol):
     POWER_SERVICE : T_Java_String
+    NOTIFICATION_SERVICE : T_Java_String
     
     def startForegroundService(self, intent: T_Intent, argument : str = ...) -> T_ComponentName: ...
     def getPackageName(self) -> str: ...
@@ -143,6 +144,12 @@ class T_NotificationBuilder(T_JavaObject, Protocol):
 
 class T_NotificationAction(T_JavaObject, Protocol): ...
 
+class T_NotificationChannel(T_JavaObject, Protocol):
+    def setDescription(self, description : T_Java_String) -> None: ...
+
+class T_NotificationManager(T_JavaObject, Protocol):
+    def createNotificationChannel(self, chan : T_NotificationChannel) -> None: ...
+    
 class T_PowerManager(T_JavaObject, Protocol):
     PARTIAL_WAKE_LOCK : int
     class WakeLock(T_JavaObject, Protocol):

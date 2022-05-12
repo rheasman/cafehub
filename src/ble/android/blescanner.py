@@ -11,7 +11,7 @@ from ble.android.pyscancallback import PyScanCallback
 from ble.blescanresult import BLEScanResult
 from ble.blescantoolinterface import I_BLEScanTool
 
-ScanCallbackImpl : T_ScanCallbackImpl = autoclass("org.decentespresso.dedebug.ScanCallbackImpl")
+ScanCallbackImpl : T_ScanCallbackImpl = autoclass("org.decentespresso.cafehub.ScanCallbackImpl")
 PSCB = PyScanCallback()
 
 class BLEScanTool(I_BLEScanTool):
@@ -102,6 +102,7 @@ class BLEScanTool(I_BLEScanTool):
 
     Raises a BLEAlreadyScanning exception if a scan is already running.
     """
+    Logger.debug(f"BLEScanner: startScan({duration})")
     if self.isScanning():
       raise BLEAlreadyScanning("A BLE scan is already running")
 

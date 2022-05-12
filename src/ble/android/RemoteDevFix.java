@@ -1,4 +1,4 @@
-package org.decentespresso.dedebug;
+package org.decentespresso.cafehub;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 

@@ -12,7 +12,7 @@ from jnius import autoclass # type: ignore
 from kivy.logger import Logger, LOG_LEVELS
 from MsgHandler import MsgHandler
 
-from ble.android.androidtypes import T_BLEService, T_BluetoothDevice, T_Context, T_Drawable, T_Intent, T_Java_String, T_Native_Invocation_Handler, T_NotificationAction, T_NotificationBuilder, T_PendingIntent, T_PowerManager, T_PythonActivity, T_PythonService
+from ble.android.androidtypes import T_BLEService, T_BluetoothDevice, T_BuildVersion, T_Context, T_Drawable, T_Intent, T_Java_String, T_Native_Invocation_Handler, T_NotificationAction, T_NotificationBuilder, T_NotificationChannel, T_NotificationManager, T_PendingIntent, T_PowerManager, T_PythonActivity, T_PythonService
 from httpserver.httpserver import BackgroundThreadedHTTPServer
 Logger.setLevel(LOG_LEVELS["debug"])
 
@@ -46,13 +46,17 @@ AndroidString : T_Java_String = autoclass('java.lang.String')
 NotificationBuilder : T_NotificationBuilder = autoclass('android.app.Notification$Builder')
 Action : T_NotificationAction = autoclass('android.app.Notification$Action')
 PythonService : T_PythonService = autoclass('org.kivy.android.PythonService')
-# PythonService = autoclass('org.decentespresso.dedebug.StickyService')
+# PythonService = autoclass('org.decentespresso.cafehub.StickyService')
 # PythonService = autoclass('org.kivy.android.StickyService')
 PythonActivity : T_PythonActivity = autoclass('org.kivy.android.PythonActivity')
 BluetoothDevice : T_BluetoothDevice = autoclass('android.bluetooth.BluetoothDevice')
 String : T_Java_String = autoclass('java.lang.String')
 InvHandler : T_Native_Invocation_Handler = autoclass("org.jnius.NativeInvocationHandler")
 PowerManager : T_PowerManager = autoclass('android.os.PowerManager')
+BuildVersion : T_BuildVersion = autoclass("android.os.Build$VERSION")
+
+if BuildVersion.SDK_INT >= 26:
+    NotificationChannel : T_NotificationChannel = autoclass("android.app.NotificationChannel")
 
 def ping(*_ : Any):
     'answer to ping messages'
@@ -72,10 +76,37 @@ def send_date():
         [asctime(localtime()).encode('utf8'), ],
     )
 
+"""
+if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+    CharSequence name = getString(R.string.channel_name);
+    String description = getString(R.string.channel_description);
+    int importance = NotificationManager.IMPORTANCE_DEFAULT;
+    NotificationChannel channel = new NotificationChannel(CHANNEL_ID, name, importance);
+    channel.setDescription(description);
+
+    // Don't see these lines in your code...
+    NotificationManager notificationManager = getSystemService(NotificationManager.class);
+    notificationManager.createNotificationChannel(channel);
+}
+
+"""
 def setup_service_notify(ptext : str, pmessage : str):
     service : T_BLEService = typing.cast(T_BLEService, PythonService.mService)
     Logger.info("BLEService: " + service.getPackageName())
     Drawable : T_Drawable = autoclass("{}.R$drawable".format(service.getPackageName()))
+
+    chan_id = AndroidString('misc'.encode('utf-8'))
+
+    if BuildVersion.SDK_INT >= 26: # Build.VERSION_CODES.O) {
+        Logger.info("Creating notification channel 'misc'")
+        chan_name = AndroidString('CafeHub Notification Channel'.encode('utf-8'))
+        desc = AndroidString('CafeHUb Notifications'.encode('utf-8'))
+        importance : int = 3 # NotificationManager.IMPORTANCE_DEFAULT is value 3
+        chan : T_NotificationChannel = NotificationChannel(chan_id, chan_name, importance)
+        chan.setDescription(desc)
+
+        nm : T_NotificationManager = PythonService.mService.getSystemService(Context.NOTIFICATION_SERVICE)
+        nm.createNotificationChannel(chan)
 
     # convert input text into a java string
     text = AndroidString(ptext.encode('utf-8'))
@@ -83,7 +114,12 @@ def setup_service_notify(ptext : str, pmessage : str):
 
     intent = Intent(service, service.getClass())
     contentIntent = PendingIntent.getActivity(service, 0, intent, 0)
-    notification_builder = NotificationBuilder(service)
+
+    if BuildVersion.SDK_INT >= 26: # Build.VERSION_CODES.O) {
+        notification_builder = NotificationBuilder(service, chan_id)
+    else:
+        notification_builder = NotificationBuilder(service)
+
     notification_builder.setContentTitle(text)
     notification_builder.setContentText(message)
     notification_builder.setSmallIcon(Drawable.presplash)

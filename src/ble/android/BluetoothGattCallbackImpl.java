@@ -1,4 +1,4 @@
-package org.decentespresso.dedebug;
+package org.decentespresso.cafehub;
 
 import java.net.ConnectException;
 import java.util.concurrent.CancellationException;

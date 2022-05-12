@@ -19,7 +19,7 @@ class PyScanCallback(PythonJavaClass):
   We'll have to do this for callbacks from the scanner, and for some GATT
   operations as well.
   """
-  __javainterfaces__ = ["org/decentespresso/dedebug/ScanCallbackImpl$IScanCallback"]
+  __javainterfaces__ = ["org/decentespresso/cafehub/ScanCallbackImpl$IScanCallback"]
   __javacontext__ = 'app'  # Use the app class resolver, not the system resolver.
 
   SCAN_FAILED_ALREADY_STARTED = 1

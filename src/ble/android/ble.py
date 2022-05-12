@@ -115,16 +115,19 @@ class BLE(BLEInterface):
         # self.BClassicAdapter.startDiscovery()  # Use to scan for Classic devices
         if self.isEnabled():
             if self.BLEScanTool is None:
+                Logger.debug("BLE: BLEScanTool doesn't exist yet. Creating.")
                 self.BLEScanTool = BLEScanTool()
             return self.BLEScanTool
         else:
             return None
 
     def scanForDevices(self, duration : float):
-        Logger.debug("scanForDevices()")
+        Logger.debug("BLE: scanForDevices()")
         t = self.getBLEScanTool()
         if t is not None:
             t.startScan(duration)
+        else:
+            Logger.info("BLE: Could not get BLEScanTool")
 
     def _tobytes(self, macaddress : str):
         return [int(x, 16) for x in macaddress.split(":")]
