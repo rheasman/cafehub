@@ -84,7 +84,7 @@ SimpleSSHD doesn't care what username you use.
 
 Once this is done, in Linux, you can mount the directory on your tablet locally using:
 ```
-sshfs ray@tab:/sdcard/ /home/ray/tabletfs/
+sshfs -p 2222 ray@tabletip:/sdcard/ /home/ray/tabletfs/
 ```
 Now you can simply treat the `tabletfs` directory as any other directory, and the files on the tablet will be updated as soon as they are changed locally.
 
