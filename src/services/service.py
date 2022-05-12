@@ -101,7 +101,7 @@ def setup_service_notify(ptext : str, pmessage : str):
         Logger.info("Creating notification channel 'misc'")
         chan_name = AndroidString('CafeHub Notification Channel'.encode('utf-8'))
         desc = AndroidString('CafeHUb Notifications'.encode('utf-8'))
-        importance : int = 3 # NotificationManager.IMPORTANCE_DEFAULT is value 3
+        importance : int = 2 # NotificationManager.IMPORTANCE_DEFAULT is value 3, IMPORTANCE_LOW is 2
         chan : T_NotificationChannel = NotificationChannel(chan_id, chan_name, importance)
         chan.setDescription(desc)
 
