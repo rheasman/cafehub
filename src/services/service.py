@@ -13,7 +13,7 @@ from jnius import autoclass # type: ignore
 from kivy.logger import Logger, LOG_LEVELS
 
 from ble.android.androidtypes import T_BLEService, T_BluetoothDevice, T_BuildVersion, T_Context, T_Drawable, T_Intent, T_Java_String, T_Native_Invocation_Handler, T_NotificationAction, T_NotificationBuilder, T_NotificationChannel, T_NotificationManager, T_PendingIntent, T_PowerManager, T_PythonActivity, T_PythonService
-from httpserver.httpserver import BackgroundThreadedHTTPServer
+from webserver.httpserver import BackgroundThreadedHTTPServer
 Logger.setLevel(LOG_LEVELS["debug"])
 
 # from kivy.base import ExceptionHandler, ExceptionManager

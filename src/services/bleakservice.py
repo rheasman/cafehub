@@ -10,7 +10,8 @@ from oscpy.client import OSCClient
 
 from kivy.logger import Logger, LOG_LEVELS
 from MsgHandler import MsgHandler
-from httpserver.httpserver import BackgroundThreadedHTTPServer
+from webserver.httpserver import BackgroundThreadedHTTPServer
+
 Logger.setLevel(LOG_LEVELS["debug"])
 
 # class E(ExceptionHandler):

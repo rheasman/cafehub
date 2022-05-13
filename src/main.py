@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 import logging
 import os
 import enum
-import time
 
 import typing
 from typing import Any
@@ -10,7 +9,7 @@ from kivy.config import Config
 
 from kivy.uix.widget import Widget
 
-from httpserver.httpserver import getlocalip
+from webserver.httpserver import getlocalip
 
 Config.set('graphics', 'maxfps', '10')
 
