@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 import logging
 import os
 import enum
+from typing import List
 
 import typing
 from typing import Any
@@ -63,6 +64,8 @@ if platform == 'android':
     from jnius import autoclass # type: ignore
     from ble.android.androidtypes import *
 
+    from android.permissions import request_permissions, Permission
+
     Context : T_Context = autoclass('android.content.Context')
     Intent : T_Intent = autoclass('android.content.Intent')
     PendingIntent : T_PendingIntent = autoclass('android.app.PendingIntent')
@@ -78,6 +81,37 @@ if platform == 'android':
     BuildVersion : T_BuildVersion = autoclass("android.os.Build$VERSION")
     Settings : T_Settings = autoclass('android.provider.Settings')
     Uri : T_Uri = autoclass('android.net.Uri')
+
+    def checkPermissions(activity : T_Activity):
+        permbase = "android.permission."
+        # PERMISSION_GRANTED = 0
+        PERMISSION_DENIED = -1
+        perms = [
+                "INTERNET", 
+                "ACCESS_COARSE_LOCATION", 
+                "ACCESS_FINE_LOCATION", 
+                "BLUETOOTH", 
+                "BLUETOOTH_ADMIN", 
+                "BLUETOOTH_PRIVILEGED",
+                "WAKE_LOCK", 
+                "FOREGROUND_SERVICE", 
+                "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
+        ]
+
+        perms = [permbase+x for x in perms]
+
+        needed : List[str] = []
+        for perm in perms:
+            if activity.checkSelfPermission(perm) == PERMISSION_DENIED:
+                Logger.info(f"Main: We do not have permission {perm}")
+                needed.append(perm)
+            else:
+                Logger.info(f"Main: We have permission {perm}")
+
+        if len(needed):
+            Logger.info(f"Requesting permissions for: {needed}")
+            request_permissions(needed)
+
 
 class Stacks(enum.Enum):
     BLEAK   = 1
@@ -208,6 +242,7 @@ class ClientServerAndroidApp(ClientServerApp):
             self.requestBLEEnableIfRequired()
             pa : T_PythonActivity = autoclass(u'org.kivy.android.PythonActivity')
             mActivity : T_Activity = pa.mActivity
+            checkPermissions(mActivity)
             pm : T_PowerManager = typing.cast(T_PowerManager, mActivity.getSystemService(Context.POWER_SERVICE))
             wl : T_PowerManager.WakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, 'CafeHub:BLEProxy')
 
