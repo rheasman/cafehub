@@ -109,7 +109,7 @@ if platform == 'android':
                 Logger.info(f"Main: We have permission {perm}")
 
         if len(needed):
-            Logger.info(f"Requesting permissions for: {needed}")
+            Logger.info(f"Main: Requesting permissions for: {needed}")
             request_permissions(needed)
 
 
