@@ -32,8 +32,12 @@ source ./activate
 
 Only do this after having run "activate".
 
+Install cython first. Jnius requires cython, but doesn't make this explicit to pip.
 ```
 pip3 install cython
+```
+Now install the rest.
+```
 pip3 install kivy
 pip3 install oscpy
 pip3 install bleak
