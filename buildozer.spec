@@ -37,7 +37,9 @@ version = 0.1
 
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
-requirements = python3==3.8.12,hostpython3==3.8.12,kivy==2.1.0,pyjnius,websocket-server,oscpy,pydantic
+requirements = python3==3.9.13,hostpython3==3.9.13,kivy==2.1.0,pyjnius,websocket-server,oscpy,aiosqlite,bleak,paho-mqtt,PyYAML,requests,pydantic
+
+
 
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes
@@ -112,7 +114,7 @@ android.minapi = 21
 #android.sdk = 20
 
 # (str) Android NDK version to use
-#android.ndk = 19b
+android.ndk = 22b
 
 # (int) Android NDK API to use. This is the minimum API your app will support, it should usually match android.minapi.
 #android.ndk_api = 21

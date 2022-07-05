@@ -2,20 +2,29 @@
 
 This assumes an Ubuntu system.
 
-### Install python 3.8
+### Install python 3.10
 
 ```
 sudo add-apt-repository ppa:deadsnakes/ppa
 sudo apt-get update
 
-sudo apt install python3.8
+sudo apt install python3.10
 ```
+
+
 ### Make your work env
 
 cd into the place you have cloned the repo, and create your kivy environment
 
+If you are upgrading your python version in a virtualenv, first delete your old
+environment. Ignore this if you are doing the initial install:
 ```
-python -m virtualenv -p python 3.8 kivy_venv
+rm -rf kivy_venv
+```
+
+Create a virtualenv with python3.10 in it:
+```
+python -m virtualenv -p python3.10 kivy_venv
 ```
 
 Create a direct link to the activate script, for convenience
@@ -43,11 +52,14 @@ pip3 install oscpy
 pip3 install bleak
 pip3 install pydantic
 pip3 install websocket-server
-pip3 install jnius
 pip3 install pytest
 ```
 
 ### Android APK
+Before using buildozer, install the latest version of buildozer (required to make python3.10 work):
+```
+pip3 install https://github.com/kivy/buildozer/archive/master.zip
+```
 
 To build and run the Android APK on an Android device connected using debug mode on USB:
 ```
