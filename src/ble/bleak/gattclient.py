@@ -154,21 +154,30 @@ class GATTClient(GATTClientInterface):
         Logger.debug("BLE: _char_read result: %s" % (r,))
         return r
 
-    async def _set_notify(self, uuid : CHAR_UUID, enable : bool, notifycallback : Callable[[CHAR_UUID, bytes], None], manager: Optional[QOpManager] = None, reason: Optional[str] = None) -> None:
+    async def _set_notify(self, uuid : CHAR_UUID, enable : bool, notifycallback : Optional[Callable[[CHAR_UUID, bytes], None]], manager: Optional[QOpManager] = None, reason: Optional[str] = None) -> None:
         Logger.debug("BLE: _set_notify(%s, %s, %s, %s, %s)" % (uuid, enable, notifycallback, manager, reason))
-
-        def do_cb(sender: int, data: bytearray):
-            # We want our callback to work with anything, not just bleak, so pass back the original UUID
-            notifycallback(uuid, data)
 
         if reason is not None:
             # Reason being set means we are being asked to cancel
             Logger.debug("BLE: _set_notify() cancelled before execution. Reason: %s" % (reason,))
 
         if enable:
+            if notifycallback is None:
+                raise BLENoCallbackProvided("No callback provided when attempting to enable a notify")
+
+            def do_cb(sender: int, data: bytearray):
+                # We want our callback to work with anything, not just bleak, so pass back the original UUID
+                notifycallback(uuid, data)
+
             await self.BleakClient.start_notify(uuid.AsString, do_cb)
+            
         else:
             await self.BleakClient.stop_notify(uuid.AsString)
+
+
+        
+
+
 
     # *** Async interface
 
@@ -225,6 +234,13 @@ class GATTClient(GATTClientInterface):
         """
         Logger.debug("BLE: disconnect from %s" % (self.MAC,))
 
+    def get_name(self) -> Optional[str]:
+        try:
+            retval : Optional[str] = self._device_info['Name']  # type: ignore
+        except:
+            retval = None
+        return retval
+
     @wrap_into_QOp(_char_read)
     def char_read(self, uuid : CHAR_UUID):
         """
@@ -243,7 +259,7 @@ class GATTClient(GATTClientInterface):
         Logger.debug("BLE: char_write(%s, %s)" % (uuid, data))
 
     @wrap_into_QOp(_set_notify)
-    def set_notify(self, uuid : CHAR_UUID, enable : bool, notifycallback : Callable[[CHAR_UUID,bytes], None]) -> None:
+    def set_notify(self, uuid : CHAR_UUID, enable : bool, notifycallback : Optional[Callable[[CHAR_UUID,bytes], None]]) -> None:
         """
         Synchronous request to enable/disable notifies on a characteristic.
         """

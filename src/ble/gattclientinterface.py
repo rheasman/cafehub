@@ -141,10 +141,16 @@ class GATTClientInterface(ABC):
         but the calling thread is made to wait until there is a result.
         """
 
+    @abstractmethod
+    def get_name(self) -> Optional[str]:
+        """
+        Returns the friendly Bluetooth name of the client
+        """
+        
     # *** Callback interface
 
     @abstractmethod
-    def set_notify(self, uuid : CHAR_UUID, enable : bool, notifycallback : Callable[[CHAR_UUID,bytes], None]) -> None:
+    def set_notify(self, uuid : CHAR_UUID, enable : bool, notifycallback : Optional[Callable[[CHAR_UUID,bytes], None]]) -> None:
         """
         Synchronous request to enable/disable notifies on a characteristic.
 

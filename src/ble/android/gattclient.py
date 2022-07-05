@@ -152,7 +152,7 @@ class GATTClient(GATTClientInterface):
         }
     """
 
-    def _set_notify(self, uuid : CHAR_UUID, enable : bool, notifycallback : Callable[[CHAR_UUID, bytes], None], manager: Union[QOpManager, None] = None, reason: Union[str, None] = None):
+    def _set_notify(self, uuid : CHAR_UUID, enable : bool, notifycallback : Optional[Callable[[CHAR_UUID, bytes], None]], manager: Union[QOpManager, None] = None, reason: Union[str, None] = None):
         Logger.debug("BLE: _set_notify(%s, %s, %s)" % (uuid.AsString, enable, notifycallback))
         if enable:
             self.NotifyCallback[uuid.AsString] = notifycallback
@@ -269,6 +269,8 @@ class GATTClient(GATTClientInterface):
         self._ConnectedSema.down()
         Logger.debug("BLE: _connect woke up on _ConnectedSema")
 
+        self.Name : Optional[str] = self.BluetoothGatt.getName()
+
         _, result = self._get_conn_info()
 
         if (result == GATTCState.CONNECTED) and (len(self.getCharacteristicsUUIDs()) < 1):
@@ -312,6 +314,8 @@ class GATTClient(GATTClientInterface):
             self.BluetoothGatt.disconnect()
             self.BluetoothGatt.close()
 
+        self.Name : Optional[str] = None
+
         # Another Android bug: You can call disconnect, and it will call back with "DISCONNECTED".
         # But, it doesn't send the disconnect and the link is held up. There is no way to tell that you
         # are in this state and it becomes impossible to talk to the device or connect to it.
@@ -320,8 +324,6 @@ class GATTClient(GATTClientInterface):
 
         self.BluetoothGatt = None
         return GATTCState.DISCONNECTED
-
-
 
     def _char_read(self, uuid: CHAR_UUID, manager: Union[QOpManager, None] = None, reason: Union[str, None] = None) -> bytes:
         Logger.debug("BLE: _char_read(%s, manager=%s, reason=%s)" % (uuid, manager, reason))
@@ -489,7 +491,7 @@ class GATTClient(GATTClientInterface):
         Logger.debug("BLE: GATTClient.disconnect() from '%s'" % self.MAC)
 
     @wrap_into_QOp(_set_notify)
-    def set_notify(self, uuid : CHAR_UUID, enable : bool, notifycallback : Callable[[CHAR_UUID,bytes], None]):
+    def set_notify(self, uuid : CHAR_UUID, enable : bool, notifycallback : Optional[Callable[[CHAR_UUID,bytes], None]]):
         """
         Enables notifications for the given uuid.
         """
@@ -518,6 +520,10 @@ class GATTClient(GATTClientInterface):
         but the calling thread is made to wait until there is a result.
         """
         Logger.debug("BLE: descriptor_write(%s, %s, %s)" % (charuuid, descid, data))
+
+    def get_name(self) -> Optional[str]:
+        Logger.debug("BLE: get_name()")
+        return self.Name
 
     # *** Callback interface
 

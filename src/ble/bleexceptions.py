@@ -28,3 +28,6 @@ class BLEConnectionError(BLEException):
 
 class BLEMismatchedOperation(BLEException):
     EID = 7
+
+class BLENoCallbackProvided(BLEException):
+    EID = 8

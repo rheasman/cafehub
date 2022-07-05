@@ -4,6 +4,7 @@ from typing import Any, Union
 
 from ble.bleops import ContextConverter, QOpExecutorFactory
 from ble.blescantoolinterface import I_BLEScanTool
+from ble.gattclientinterface import GATTClientInterface
 
 
 class BLEInterface(metaclass=abc.ABCMeta):
@@ -87,4 +88,18 @@ class BLEInterface(metaclass=abc.ABCMeta):
     def scanForDevices(self, duration : float):
         """
         Uses the default scan tool to scan for devices for "duration" seconds.
+        """
+
+    @abc.abstractmethod
+    def getGATTClient(self, macaddress: str) -> GATTClientInterface:
+        """
+        Return a GATT client for the BLE device with the given MAC address. The
+        device does not need to have been seen in a BLE scan. If you know what
+        device you want, there is no need for a scan at all.
+
+        There is only one GATTClient object for a MAC. Calling this more than once
+        for a MAC will return the same object each time.
+
+        Does not actually connect to the device. Call connect() on the GATTClient
+        when you are ready.
         """
