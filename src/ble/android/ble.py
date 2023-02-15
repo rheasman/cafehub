@@ -38,8 +38,8 @@ class BLE(BLEInterface):
         self.QOpExecutorFactory = executorfactory
         self.ContextConverter = contextconverter
         self.BLEScanTool = None
-        self.BLEAdapterClass : T_BluetoothAdapter = autoclass('android.bluetooth.BluetoothAdapter')
-        self.BLEAdapter : T_BluetoothAdapter = self.BLEAdapterClass.getDefaultAdapter()
+        self.BLEAdapterClass : T_BluetoothAdapter = autoclass('android.bluetooth.BluetoothAdapter') # Uninstantiated class
+        self.BLEAdapter : T_BluetoothAdapter = self.BLEAdapterClass.getDefaultAdapter() # getDefaultAdapter is static, returns instance
         self.BLEAdapter.cancelDiscovery()
 
         self.GATTClients : Dict[str, GATTClientInterface] = {}
