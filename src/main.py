@@ -192,7 +192,7 @@ class ClientServerApp(App, ABC):
 
         self.client = OSCClient(b'localhost', 4000)
         self.root = Builder.load_string(KV)
-        self.root.ids.ipaddr.text = f"IP Address: {getlocalip()}"
+        self.root.ids.ipaddr.text = f"IP Address: {getlocalip()}:5000"
         return self.root
 
     @abstractmethod
