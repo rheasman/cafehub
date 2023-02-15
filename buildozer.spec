@@ -37,7 +37,7 @@ version = 0.1
 
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
-requirements = python3==3.9.13,hostpython3==3.9.13,kivy==2.1.0,pyjnius,websocket-server,oscpy
+requirements = python3==3.9.13,hostpython3==3.9.13,kivy==2.1.0,pyjnius,websocket-server,oscpy,pydantic
 
 
 
@@ -52,7 +52,7 @@ requirements = python3==3.9.13,hostpython3==3.9.13,kivy==2.1.0,pyjnius,websocket
 #icon.filename = %(source.dir)s/data/icon.png
 
 # (str) Supported orientation (one of landscape, sensorLandscape, portrait or all)
-orientation = all
+orientation = landscape
 
 # (list) List of service to declare
 #services = NAME:ENTRYPOINT_TO_PY,NAME2:ENTRYPOINT2_TO_PY
@@ -97,7 +97,7 @@ android.presplash_color = teal
 
 # (list) Permissions
 
-android.permissions = INTERNET, ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION, BLUETOOTH, BLUETOOTH_ADMIN, WAKE_LOCK, FOREGROUND_SERVICE, REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+android.permissions = INTERNET, ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION, BLUETOOTH, BLUETOOTH_ADMIN, WAKE_LOCK, FOREGROUND_SERVICE, REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, BLUETOOTH_SCAN
 
 
 
@@ -105,7 +105,7 @@ android.permissions = INTERNET, ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION, BL
 #android.features = android.hardware.usb.host
 
 # (int) Target Android API, should be as high as possible.
-android.api = 27
+android.api = 30
 
 # (int) Minimum API your APK will support.
 android.minapi = 21
@@ -114,7 +114,7 @@ android.minapi = 21
 #android.sdk = 20
 
 # (str) Android NDK version to use
-android.ndk = 21
+android.ndk = 25b
 
 # (int) Android NDK API to use. This is the minimum API your app will support, it should usually match android.minapi.
 #android.ndk_api = 21
