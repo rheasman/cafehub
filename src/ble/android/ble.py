@@ -32,15 +32,15 @@ class BLE(BLEInterface):
     """
 
     def __init__(self, executorfactory: QOpExecutorFactory, contextconverter: ContextConverter, androidcontext : Any = None):
-        Logger.info("BLE.__init__()")
+        Logger.debug("BLE.__init__()")
 
         self.AndroidContext = androidcontext
         self.QOpExecutorFactory = executorfactory
         self.ContextConverter = contextconverter
         self.BLEScanTool = None
         self.BLEAdapterClass : T_BluetoothAdapter = autoclass('android.bluetooth.BluetoothAdapter')
-        self.BClassicAdapter : T_BluetoothClassicAdapter = self.BLEAdapterClass.getDefaultAdapter()
-        self.BClassicAdapter.cancelDiscovery()
+        self.BLEAdapter : T_BluetoothAdapter = self.BLEAdapterClass.getDefaultAdapter()
+        self.BLEAdapter.cancelDiscovery()
 
         self.GATTClients : Dict[str, GATTClientInterface] = {}
 
@@ -78,14 +78,14 @@ class BLE(BLEInterface):
 
     def isBLESupported(self):
         """Returns True if BLE is supported"""
-        return self.BClassicAdapter is not None
+        return self.BLEAdapter is not None
 
     def isEnabled(self) -> bool:
         """Returns True if BLE is supported and enabled"""
         if not self.isBLESupported():
             return False
 
-        return self.BClassicAdapter.isEnabled()
+        return self.BLEAdapter.isEnabled()
 
     def requestBLEEnableIfRequired(self) -> bool:
         """
@@ -112,11 +112,11 @@ class BLE(BLEInterface):
         """
         If BLE is enabled, returns a BLEScanTool object, else returns None
         """
-        # self.BClassicAdapter.startDiscovery()  # Use to scan for Classic devices
+        # self.BLEAdapter.startDiscovery()  # Use to scan for Classic devices
         if self.isEnabled():
             if self.BLEScanTool is None:
                 Logger.debug("BLE: BLEScanTool doesn't exist yet. Creating.")
-                self.BLEScanTool = BLEScanTool()
+                self.BLEScanTool = BLEScanTool(self.BLEAdapter)
             return self.BLEScanTool
         else:
             return None

@@ -28,13 +28,14 @@ class BLEScanTool(I_BLEScanTool):
 
   Only one scantool object should be scanning at a time.
   """
-  def __init__(self):
+  def __init__(self, BA: T_BluetoothAdapter):
     self.ScanQ : deque[BLEScanResult] = deque() # Thread safe, in case callbacks are in another thread
     self.Seen : dict[str, BLEScanResult] = {}   # Results of the current scan
     self.Previous : Dict[str, BLEScanResult] = {} # Results of previous scans
     self.StartTime = time.time()
     self.Duration = 0.0
     self.Scanning = False
+    self.BLEAdapterClass = BA
 
   def getSeenEntries(self) -> Dict[str, BLEScanResult]:
     """
@@ -111,8 +112,6 @@ class BLEScanTool(I_BLEScanTool):
       self.Previous[k] = self.Seen[k]
 
     self.Seen = {}
-
-    self.BLEAdapterClass : T_BluetoothAdapter = autoclass('android.bluetooth.BluetoothAdapter')
 
     PSCB.setParent(self)
     pycallback = PSCB
