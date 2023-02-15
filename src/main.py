@@ -92,7 +92,7 @@ if platform == 'android':
                 "ACCESS_FINE_LOCATION", 
                 "BLUETOOTH", 
                 "BLUETOOTH_ADMIN", 
-                "BLUETOOTH_PRIVILEGED",
+                "BLUETOOTH_SCAN",
                 "WAKE_LOCK", 
                 "FOREGROUND_SERVICE", 
                 "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
@@ -110,7 +110,10 @@ if platform == 'android':
 
         if len(needed):
             Logger.info(f"Main: Requesting permissions for: {needed}")
-            request_permissions(needed)
+            request_permissions(needed, permissionCallback)
+
+    def permissionCallback(permissions, grantresults):
+        Logger.debug(f"permissionCallback: {permissions} {grantresults}")
 
 
 class Stacks(enum.Enum):
