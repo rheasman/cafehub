@@ -29,7 +29,7 @@ source.exclude_patterns = activate, test.py, futuretests.py, buildozer.spec, DE1
 #images/*/*.jpg,
 
 # (str) Application versioning (method 1)
-version = 0.1
+version = 0.11
 
 # (str) Application versioning (method 2)
 # version.regex = __version__ = ['"](.*)['"]
