@@ -1,3 +1,4 @@
+
 from abc import ABC, abstractmethod
 import logging
 import os
@@ -50,6 +51,70 @@ Config.set('kivy', 'log_name', 'lastlog.txt')
 
 from kivy.app import App
 from kivy.lang.builder import Builder
+import sys, os
+
+mypath = os.path.realpath(sys.executable)
+Logger.debug(f"sys executable: '{sys.executable}', which is at real path '{mypath}'")
+
+filelist = [os.path.join(dirpath,f) for (dirpath, dirnames, filenames) in os.walk(mypath) for f in filenames]
+Logger.debug(f"Filelist at '{mypath}':")
+for i in filelist:
+    Logger.debug(f"{i}")
+
+from packaging.tags import sys_tags
+
+# print(list(sys_tags()))
+
+# Logger.debug(f'Conf strings:')
+# for i in dir(os):
+#     print(i)
+
+# for k,v in os.confstr_names.items():
+#     print(k,v)
+
+# Logger.debug(f'CS_GNU_LIBC_VERSION: {getattr(os, "confstr")("CS_GNU_LIBC_VERSION")}')
+
+# from ctypes import CDLL, Structure, c_char, byref, c_char_p
+
+# libc = CDLL('libc.so')
+
+# class uts_struct(Structure):
+#     _fields_ = [ ('sysname', c_char * 65),
+#                  ('nodename', c_char * 65),
+#                  ('release', c_char * 65),
+#                  ('version', c_char * 65),
+#                  ('machine', c_char * 65),
+#                  ('domain', c_char * 65) ]
+
+# gnar = uts_struct()
+
+# libc.uname(byref(gnar))
+
+# try:
+#     libc.gnu_get_libc_version.restype = c_char_p
+#     libc_version = libc.gnu_get_libc_version()
+
+#     print(f"{libc_version}")
+#     for k,v in uts_struct._fields_:
+#         print(k,getattr(gnar, k))
+# except AttributeError as e:
+#     Logger.debug("Couldn't call gnu_get_libc_version(), so I guess it's not GLIBC")
+    
+# import platform
+
+# # Get the operating system name
+# os_name = platform.system()
+
+# # Get the version of the operating system
+# os_version = platform.release()
+
+# # Get the machine's processor architecture
+# machine_arch = platform.machine()
+
+# # Print the results
+# print("Operating system:", os_name)
+# print("Operating system version:", os_version)
+# print("Machine architecture:", machine_arch)
 
 # coding: utf8
 __version__ = '0.2'
@@ -92,6 +157,7 @@ if platform == 'android':
                 "ACCESS_FINE_LOCATION", 
                 "BLUETOOTH", 
                 "BLUETOOTH_ADMIN", 
+                "BLUETOOTH_CONNECT",
                 "BLUETOOTH_SCAN",
                 "WAKE_LOCK", 
                 "FOREGROUND_SERVICE", 

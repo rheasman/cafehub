@@ -18,7 +18,7 @@ Logger.setLevel(LOG_LEVELS["debug"])
 
 # from kivy.base import ExceptionHandler, ExceptionManager
 
-from typing import Any
+from typing import Any, Optional
 
 from kivy.logger import Logger
 
@@ -57,6 +57,9 @@ BuildVersion : T_BuildVersion = autoclass("android.os.Build$VERSION")
 
 if BuildVersion.SDK_INT >= 26:
     NotificationChannel : T_NotificationChannel = autoclass("android.app.NotificationChannel")
+
+OurNotificationManager : Optional[T_NotificationManager] = None
+OurNotificationChannelName : Optional[T_Java_String] = None
 
 def ping(*_ : Any):
     'answer to ping messages'
@@ -98,6 +101,8 @@ def setup_service_notify(ptext : str, pmessage : str):
     chan_id = AndroidString('misc'.encode('utf-8'))
 
     if BuildVersion.SDK_INT >= 26: # Build.VERSION_CODES.O) {
+        global OurNotificationChannelName
+        global OurNotificationManager
         Logger.info("Creating notification channel 'misc'")
         chan_name = AndroidString('CafeHub Notification Channel'.encode('utf-8'))
         desc = AndroidString('CafeHUb Notifications'.encode('utf-8'))
@@ -105,8 +110,10 @@ def setup_service_notify(ptext : str, pmessage : str):
         chan : T_NotificationChannel = NotificationChannel(chan_id, chan_name, importance)
         chan.setDescription(desc)
 
-        nm : T_NotificationManager = PythonService.mService.getSystemService(Context.NOTIFICATION_SERVICE)
-        nm.createNotificationChannel(chan)
+        OurNotificationManager = PythonService.mService.getSystemService(Context.NOTIFICATION_SERVICE)
+        if OurNotificationManager:
+            OurNotificationManager.createNotificationChannel(chan)
+            OurNotificationChannelName = chan_name
 
     # convert input text into a java string
     text = AndroidString(ptext.encode('utf-8'))
@@ -132,6 +139,10 @@ def setup_service_notify(ptext : str, pmessage : str):
 KeepRunning = True
 
 def shutdown(*args : Any):
+    if (OurNotificationManager is not None) and (OurNotificationChannelName is not None):
+        OurNotificationManager.cancelAll()
+        OurNotificationManager.deleteNotificationChannel(OurNotificationChannelName)
+
     PythonService.mService.setAutoRestartService(False)
     global KeepRunning
     KeepRunning = False

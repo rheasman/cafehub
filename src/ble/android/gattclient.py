@@ -269,7 +269,7 @@ class GATTClient(GATTClientInterface):
         self._ConnectedSema.down()
         Logger.debug("BLE: _connect woke up on _ConnectedSema")
 
-        self.Name : Optional[str] = self.BluetoothGatt.getName()
+        self.Name : Optional[str] = self.BluetoothDevice.getName()
 
         _, result = self._get_conn_info()
 

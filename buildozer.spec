@@ -29,7 +29,7 @@ source.exclude_patterns = activate, test.py, futuretests.py, buildozer.spec, DE1
 #images/*/*.jpg,
 
 # (str) Application versioning (method 1)
-version = 0.11
+version = 0.12
 
 # (str) Application versioning (method 2)
 # version.regex = __version__ = ['"](.*)['"]
@@ -37,7 +37,7 @@ version = 0.11
 
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
-requirements = python3==3.9.13,hostpython3==3.9.13,kivy==2.1.0,pyjnius,websocket-server,oscpy,pydantic
+requirements = python3==3.9.13,hostpython3==3.9.13,kivy==2.1.0,pyjnius,websocket-server,oscpy,pydantic,packaging
 
 
 
@@ -97,7 +97,7 @@ android.presplash_color = teal
 
 # (list) Permissions
 
-android.permissions = INTERNET, ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION, BLUETOOTH, BLUETOOTH_ADMIN, WAKE_LOCK, FOREGROUND_SERVICE, REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, BLUETOOTH_SCAN
+android.permissions = INTERNET, ACCESS_COARSE_LOCATION, ACCESS_FINE_LOCATION, BLUETOOTH, BLUETOOTH_ADMIN, WAKE_LOCK, FOREGROUND_SERVICE, REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, BLUETOOTH_SCAN, BLUETOOTH_CONNECT
 
 
 
