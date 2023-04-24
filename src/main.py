@@ -189,7 +189,7 @@ class Stacks(enum.Enum):
 
 Use_Stack = Stacks.UNKNOWN
 
-if platform in ('linux', 'linux2', 'macos', 'win'):
+if platform in ('linux', 'linux2', 'macosx', 'win'):
     import services.bleakservice
     Use_Stack=Stacks.BLEAK
 
